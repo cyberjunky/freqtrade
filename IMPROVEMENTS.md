@@ -1,4 +1,4 @@
-# Changelog
+# Improvements
 
 All notable changes to this project are documented here.
 
@@ -43,8 +43,36 @@ Ready-to-use config for BloFin swap trading:
 - `dry_run: true` — safe default; change to `false` for live trading
 - Requires `password` (API passphrase) in addition to `key` and `secret`
 
-### Notes
+#### Notes (BloFin)
 
 - **No changes to `MovingGridStrategy`** — the strategy is exchange-agnostic. BloFin's contract sizing is handled transparently by freqtrade's `amount_to_contracts()` / `contracts_to_amount()` utilities using the market's `contractSize` field.
 - Stop-loss on exchange is disabled (`stoploss_on_exchange: false`) — BloFin uses a dedicated TPSL API endpoint not yet wired into freqtrade's stoploss flow.
 - WebSocket order streaming is not used — freqtrade polls via REST, which is compatible with BloFin's REST API.
+
+---
+
+#### User-defined pairlist handlers from `user_data/pairlist/`
+
+Custom `IPairList` subclasses placed in `user_data/pairlist/` are now
+discovered and loaded by `PairListResolver`, mirroring how strategies are
+loaded from `user_data/strategies/`.
+
+**Usage:**
+
+1. Create `user_data/pairlist/MyPairList.py` containing a class that extends
+   `IPairList`.
+2. Reference it by class name in `config.json`:
+   ```json
+   "pairlists": [{"method": "MyPairList"}]
+   ```
+
+**Files changed:**
+
+| File | Change |
+|------|--------|
+| `freqtrade/constants.py` | Added `USERPATH_PAIRLISTS = "pairlist"` |
+| `freqtrade/resolvers/pairlist_resolver.py` | Set `user_subdir = USERPATH_PAIRLISTS` so the resolver searches `user_data/pairlist/` |
+| `freqtrade/configuration/directory_operations.py` | Added `USERPATH_PAIRLISTS` to `sub_dirs` so `freqtrade create-userdir` creates `user_data/pairlist/` |
+| `freqtrade/config_schema/config_schema.py` | Removed `"enum": AVAILABLE_PAIRLISTS` from the `method` field, allowing custom class names to pass config validation |
+| `build_helpers/schema.json` | Regenerated to match — removed the `"enum"` array from `pairlists → items → properties → method` |
+| `tests/plugins/test_pairlist.py` | Added `test_load_pairlist_from_user_data` |
