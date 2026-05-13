@@ -119,6 +119,7 @@ USERPATH_HYPEROPTS = "hyperopts"
 USERPATH_STRATEGIES = "strategies"
 USERPATH_NOTEBOOKS = "notebooks"
 USERPATH_FREQAIMODELS = "freqaimodels"
+USERPATH_PAIRLISTS = "pairlist"
 
 TELEGRAM_SETTING_OPTIONS = ["on", "off", "silent"]
 WEBHOOK_FORMAT_OPTIONS = ["form", "json", "raw"]

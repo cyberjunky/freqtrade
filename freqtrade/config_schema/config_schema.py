@@ -558,8 +558,10 @@ CONF_SCHEMA = {
                 "properties": {
                     "method": {
                         "description": "Method used for generating the pairlist.",
-                        "type": "string",
-                        "enum": AVAILABLE_PAIRLISTS,
+                        "anyOf": [
+                            {"type": "string", "enum": AVAILABLE_PAIRLISTS},
+                            {"type": "string"},
+                        ],
                     },
                 },
                 "required": ["method"],

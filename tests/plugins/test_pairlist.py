@@ -2919,3 +2919,48 @@ def test_DelistFilter(mocker, default_conf_usdt, time_machine, caplog) -> None:
         "Removed NEO/USDT from whitelist, because it will be delisted on 2025-09-06 02:00:00.",
         caplog,
     )
+
+
+def test_load_pairlist_from_user_data(mocker, whitelist_conf, tmp_path):
+    """Custom IPairList subclass placed in user_data/pairlist/ is discovered and loaded.
+    Built-in pairlist names (AVAILABLE_PAIRLISTS) continue to work unchanged.
+    """
+    import jsonschema
+
+    from freqtrade.config_schema import CONF_SCHEMA
+    from freqtrade.constants import AVAILABLE_PAIRLISTS
+
+    pairlist_schema = CONF_SCHEMA["properties"]["pairlists"]
+
+    # --- built-in names must still pass schema validation ---
+    for name in AVAILABLE_PAIRLISTS:
+        jsonschema.validate([{"method": name}], pairlist_schema)
+
+    # --- custom name must also pass schema validation ---
+    jsonschema.validate([{"method": "UserTestPairList"}], pairlist_schema)
+
+    # --- custom class is discovered from user_data/pairlist/ ---
+    pairlist_dir = tmp_path / "pairlist"
+    pairlist_dir.mkdir()
+    (pairlist_dir / "UserTestPairList.py").write_text(
+        "from freqtrade.plugins.pairlist.IPairList import IPairList, SupportsBacktesting\n"
+        "class UserTestPairList(IPairList):\n"
+        "    is_pairlist_generator = True\n"
+        "    supports_backtesting = SupportsBacktesting.YES\n"
+        "    @staticmethod\n"
+        "    def description(): return 'User test pairlist'\n"
+        "    def short_desc(self): return 'UserTestPairList'\n"
+        "    def gen_pairlist(self, tickers): return []\n"
+        "    def _validate_pair(self, pair, ticker): return True\n"
+    )
+    whitelist_conf["user_data_dir"] = tmp_path
+    exchange = get_patched_exchange(mocker, whitelist_conf)
+    pl = PairListResolver.load_pairlist(
+        "UserTestPairList",
+        exchange=exchange,
+        pairlistmanager=MagicMock(),
+        config=whitelist_conf,
+        pairlistconfig={"method": "UserTestPairList"},
+        pairlist_pos=0,
+    )
+    assert pl.__class__.__name__ == "UserTestPairList"

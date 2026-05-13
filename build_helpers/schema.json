@@ -667,27 +667,34 @@
         "properties": {
           "method": {
             "description": "Method used for generating the pairlist.",
-            "type": "string",
-            "enum": [
-              "StaticPairList",
-              "VolumePairList",
-              "PercentChangePairList",
-              "ProducerPairList",
-              "RemotePairList",
-              "MarketCapPairList",
-              "CrossMarketPairList",
-              "AgeFilter",
-              "DelistFilter",
-              "FullTradesFilter",
-              "OffsetFilter",
-              "PairInformationFilter",
-              "PerformanceFilter",
-              "PrecisionFilter",
-              "PriceFilter",
-              "RangeStabilityFilter",
-              "ShuffleFilter",
-              "SpreadFilter",
-              "VolatilityFilter"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "StaticPairList",
+                  "VolumePairList",
+                  "PercentChangePairList",
+                  "ProducerPairList",
+                  "RemotePairList",
+                  "MarketCapPairList",
+                  "CrossMarketPairList",
+                  "AgeFilter",
+                  "DelistFilter",
+                  "FullTradesFilter",
+                  "OffsetFilter",
+                  "PairInformationFilter",
+                  "PerformanceFilter",
+                  "PrecisionFilter",
+                  "PriceFilter",
+                  "RangeStabilityFilter",
+                  "ShuffleFilter",
+                  "SpreadFilter",
+                  "VolatilityFilter"
+                ]
+              },
+              {
+                "type": "string"
+              }
             ]
           }
         },
