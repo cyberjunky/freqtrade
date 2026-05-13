@@ -8,6 +8,7 @@ from freqtrade.constants import (
     USERPATH_FREQAIMODELS,
     USERPATH_HYPEROPTS,
     USERPATH_NOTEBOOKS,
+    USERPATH_PAIRLISTS,
     USERPATH_STRATEGIES,
     Config,
 )
@@ -62,6 +63,7 @@ def create_userdata_dir(directory: str, create_dir: bool = False) -> Path:
         "logs",
         USERPATH_NOTEBOOKS,
         "plot",
+        USERPATH_PAIRLISTS,
         USERPATH_STRATEGIES,
         USERPATH_FREQAIMODELS,
     ]
