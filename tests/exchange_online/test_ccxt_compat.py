@@ -163,9 +163,11 @@ class TestCCXTExchange:
             pytest.skip(f"No sample Balances available for exchange {exchangename}")
 
     def test_ccxt_fetch_tickers(self, exchange: EXCHANGE_FIXTURE_TYPE):
-        exch, _, exchange_params = exchange
+        exch, exchangename, exchange_params = exchange
         pair = exchange_params["pair"]
-
+        if exchangename == "okx":
+            # TODO: re-enable test once ccxt has this fixed.
+            pytest.skip("OKX fetch_tickers is currently broken, skipping test")
         tickers = exch.get_tickers()
         assert pair in tickers
         assert "ask" in tickers[pair]
