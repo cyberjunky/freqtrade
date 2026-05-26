@@ -15,6 +15,27 @@ from tests.conftest import EXMS, get_patched_exchange, log_has_re
 from tests.exchange.test_exchange import ccxt_exceptionhandlers
 
 
+# ─── ccxt has-dict patch (pre-validation) ────────────────────────────────
+
+
+def test_blofin_ccxt_has_fetchorder_patched():
+    """
+    Importing freqtrade.exchange.blofin must patch ccxt's blofin so that
+    fetchOrder=True is advertised on every new instance. Without this,
+    freqtrade's check_exchange() rejects the exchange before our class
+    can take over.
+    """
+    import ccxt
+
+    import freqtrade.exchange.blofin  # noqa: F401  # ensure import-time patch ran
+
+    assert ccxt.blofin().has["fetchOrder"] is True
+    # async_support must be patched too — check_exchange uses ccxt.pro/async
+    import ccxt.async_support
+
+    assert ccxt.async_support.blofin().has["fetchOrder"] is True
+
+
 # ─── additional_exchange_init ────────────────────────────────────────────
 
 
