@@ -431,6 +431,163 @@ def test_blofin_get_balances_exception_paths(default_conf, mocker):
     )
 
 
+# ─── get_tickers (quoteVolume fixup) ─────────────────────────────────────
+
+
+def test_blofin_get_tickers_populates_quote_volume(default_conf, mocker):
+    """
+    BloFin returns baseVolume in contracts with quoteVolume=None.
+    We must compute quoteVolume = baseVolume × contractSize × last.
+    """
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    markets = {
+        "BTC/USDT:USDT": {
+            "symbol": "BTC/USDT:USDT",
+            "swap": True,
+            "spot": False,
+            "quote": "USDT",
+            "contractSize": 0.001,
+        },
+    }
+    api_mock = MagicMock()
+    api_mock.fetch_tickers = MagicMock(
+        return_value={
+            "BTC/USDT:USDT": {
+                "symbol": "BTC/USDT:USDT",
+                "baseVolume": 779574.0,
+                "last": 76935.1,
+                "quoteVolume": None,
+            },
+        }
+    )
+    exchange = get_patched_exchange(
+        mocker,
+        default_conf,
+        exchange="blofin",
+        api_mock=api_mock,
+        mock_markets=markets,
+    )
+    mocker.patch.object(exchange, "exchange_has", return_value=True)
+
+    tickers = exchange.get_tickers()
+    expected = 779574.0 * 0.001 * 76935.1
+    assert abs(tickers["BTC/USDT:USDT"]["quoteVolume"] - expected) < 0.01
+
+
+def test_blofin_get_tickers_preserves_existing_quote_volume(default_conf, mocker):
+    """If ccxt does fill in quoteVolume, we must not overwrite it."""
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    markets = {
+        "ETH/USDT:USDT": {
+            "symbol": "ETH/USDT:USDT",
+            "swap": True,
+            "spot": False,
+            "quote": "USDT",
+            "contractSize": 0.01,
+        },
+    }
+    api_mock = MagicMock()
+    api_mock.fetch_tickers = MagicMock(
+        return_value={
+            "ETH/USDT:USDT": {
+                "symbol": "ETH/USDT:USDT",
+                "baseVolume": 100.0,
+                "last": 3000.0,
+                "quoteVolume": 999_999.0,
+            },
+        }
+    )
+    exchange = get_patched_exchange(
+        mocker,
+        default_conf,
+        exchange="blofin",
+        api_mock=api_mock,
+        mock_markets=markets,
+    )
+    mocker.patch.object(exchange, "exchange_has", return_value=True)
+
+    tickers = exchange.get_tickers()
+    assert tickers["ETH/USDT:USDT"]["quoteVolume"] == 999_999.0
+
+
+def test_blofin_get_tickers_skips_inverse_contracts(default_conf, mocker):
+    """Inverse contracts use a reciprocal formula — leave them untouched."""
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    markets = {
+        "BTC/USD:USD": {
+            "symbol": "BTC/USD:USD",
+            "swap": True,
+            "spot": False,
+            "quote": "USD",
+            "contractSize": 100.0,
+            "inverse": True,
+        },
+    }
+    api_mock = MagicMock()
+    api_mock.fetch_tickers = MagicMock(
+        return_value={
+            "BTC/USD:USD": {
+                "symbol": "BTC/USD:USD",
+                "baseVolume": 100.0,
+                "last": 50000.0,
+                "quoteVolume": None,
+            },
+        }
+    )
+    exchange = get_patched_exchange(
+        mocker,
+        default_conf,
+        exchange="blofin",
+        api_mock=api_mock,
+        mock_markets=markets,
+    )
+    mocker.patch.object(exchange, "exchange_has", return_value=True)
+
+    tickers = exchange.get_tickers()
+    # Must stay None — we don't synthesize values for inverse contracts.
+    assert tickers["BTC/USD:USD"]["quoteVolume"] is None
+
+
+def test_blofin_get_tickers_skips_when_missing_data(default_conf, mocker):
+    """Tickers with no last/baseVolume must be left untouched (no crash)."""
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    markets = {
+        "X/USDT:USDT": {
+            "symbol": "X/USDT:USDT",
+            "swap": True,
+            "spot": False,
+            "quote": "USDT",
+            "contractSize": 1.0,
+        },
+    }
+    api_mock = MagicMock()
+    api_mock.fetch_tickers = MagicMock(
+        return_value={
+            "X/USDT:USDT": {
+                "symbol": "X/USDT:USDT",
+                "baseVolume": None,  # missing
+                "last": 1.0,
+                "quoteVolume": None,
+            },
+        }
+    )
+    exchange = get_patched_exchange(
+        mocker,
+        default_conf,
+        exchange="blofin",
+        api_mock=api_mock,
+        mock_markets=markets,
+    )
+    mocker.patch.object(exchange, "exchange_has", return_value=True)
+
+    tickers = exchange.get_tickers()
+    assert tickers["X/USDT:USDT"]["quoteVolume"] is None
+
+
 # ─── get_funding_fees ────────────────────────────────────────────────────
 
 

@@ -418,6 +418,42 @@ class Blofin(Exchange):
         except ccxt.BaseError as e:
             raise OperationalException(e) from e
 
+    def get_tickers(
+        self,
+        symbols: list[str] | None = None,
+        *,
+        cached: bool = False,
+        market_type: TradingMode | None = None,
+    ):
+        """
+        Wrap the base implementation to populate ``quoteVolume`` on every ticker.
+
+        BloFin reports ``baseVolume`` in *contracts* (not base currency) and leaves
+        ``quoteVolume = None``. Freqtrade's VolumePairList sorts by quoteVolume —
+        without this fixup every pair is rejected. The correct USDT volume for a
+        linear swap is ``baseVolume × contractSize × last``.
+        """
+        tickers = super().get_tickers(symbols=symbols, cached=cached, market_type=market_type)
+        for symbol, ticker in tickers.items():
+            if ticker.get("quoteVolume") is not None:
+                continue
+            base_vol = ticker.get("baseVolume")
+            last = ticker.get("last") or ticker.get("close")
+            if base_vol is None or last is None:
+                continue
+            market = self.markets.get(symbol) or {}
+            # Linear-only: the formula assumes USDT/USDC-settled perpetuals.
+            # Inverse contracts use a reciprocal calc we don't need (freqtrade
+            # rejects inverse upstream).
+            if market.get("inverse"):
+                continue
+            try:
+                contract_size = float(market.get("contractSize") or 1.0)
+                ticker["quoteVolume"] = float(base_vol) * contract_size * float(last)
+            except (TypeError, ValueError):
+                continue
+        return tickers
+
     def get_funding_fees(
         self, pair: str, amount: float, is_short: bool, open_date: datetime
     ) -> float:
