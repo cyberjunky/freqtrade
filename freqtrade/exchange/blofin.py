@@ -46,6 +46,55 @@ _POSITION_MODE_ALREADY_SET_HINTS = (
 )
 
 
+def _patch_ccxt_blofin_has() -> None:
+    """
+    Advertise ``fetchOrder=True`` on every ccxt BloFin instance.
+
+    Freqtrade's :func:`check_exchange.check_exchange` runs
+    :func:`validate_exchange` against a raw ccxt instance *before* any
+    subclass is instantiated. BloFin's ccxt has ``fetchOrder=None`` (and only
+    exposes the plural ``fetchOpenOrders``/``fetchClosedOrders``), so without
+    this patch validation rejects the exchange outright with
+    ``"missing: fetchOrder"`` — our :meth:`Blofin.additional_exchange_init`
+    patch only runs *after* validation, far too late.
+
+    We override ``describe`` (where ccxt assembles ``has``) on all three ccxt
+    submodules; the patch is idempotent so re-imports stay no-ops.
+    """
+    import ccxt as _ccxt_sync
+
+    try:
+        import ccxt.async_support as _ccxt_async
+    except ImportError:
+        _ccxt_async = None  # type: ignore[assignment]
+    try:
+        import ccxt.pro as _ccxt_pro
+    except ImportError:
+        _ccxt_pro = None  # type: ignore[assignment]
+
+    def _make_patched(orig):
+        def _patched(self):
+            desc = orig(self)
+            desc.setdefault("has", {})["fetchOrder"] = True
+            return desc
+
+        _patched._ft_patched = True  # type: ignore[attr-defined]
+        return _patched
+
+    for mod in (_ccxt_sync, _ccxt_async, _ccxt_pro):
+        if mod is None:
+            continue
+        cls = getattr(mod, "blofin", None)
+        if cls is None:
+            continue
+        if getattr(cls.describe, "_ft_patched", False):
+            continue
+        cls.describe = _make_patched(cls.describe)
+
+
+_patch_ccxt_blofin_has()
+
+
 class Blofin(Exchange):
     """BloFin exchange class.
 
