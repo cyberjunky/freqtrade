@@ -109,7 +109,10 @@ class Blofin(Exchange):
     _ft_has: FtHas = {
         "stoploss_on_exchange": False,
         "order_time_in_force": ["GTC", "FOK", "IOC"],
-        "ohlcv_candle_limit": 100,
+        # BloFin's REST candles endpoint accepts up to 1440 per request (default 500);
+        # ccxt's hardcoded "max 100" comment is wrong — it forwards whatever we ask.
+        # See: https://docs.blofin.com (Public Data → Get Candlesticks).
+        "ohlcv_candle_limit": 1440,
         "trades_has_history": True,
         "ws_enabled": True,
     }
