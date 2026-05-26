@@ -438,22 +438,58 @@ def test_blofin_get_funding_fees_spot_returns_zero(default_conf, mocker):
     """Spot mode: no funding fees, no exchange call."""
     now = datetime.now(UTC)
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
-    exchange._fetch_and_calculate_funding_fees = MagicMock()
+    exchange._get_funding_fees_from_exchange = MagicMock()
     result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
     assert result == 0.0
-    exchange._fetch_and_calculate_funding_fees.assert_not_called()
+    exchange._get_funding_fees_from_exchange.assert_not_called()
 
 
-def test_blofin_get_funding_fees_futures_calculates(default_conf, mocker):
-    """Futures mode: always recompute from rates, not from exchange history."""
+def test_blofin_get_funding_fees_dry_run_returns_zero_silently(default_conf, mocker):
+    """
+    Dry-run futures: BloFin has no fetchMarkOHLCV so we can't simulate funding.
+    Must return 0.0 without calling the exchange or the simulator.
+    """
     now = datetime.now(UTC)
+    default_conf["dry_run"] = True
     default_conf["trading_mode"] = "futures"
     default_conf["margin_mode"] = "isolated"
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
-    exchange._fetch_and_calculate_funding_fees = MagicMock(return_value=1.5)
+    exchange._get_funding_fees_from_exchange = MagicMock()
+    exchange._fetch_and_calculate_funding_fees = MagicMock()
     result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
-    assert result == 1.5
-    exchange._fetch_and_calculate_funding_fees.assert_called_once()
+    assert result == 0.0
+    exchange._get_funding_fees_from_exchange.assert_not_called()
+    exchange._fetch_and_calculate_funding_fees.assert_not_called()
+
+
+def test_blofin_get_funding_fees_live_uses_exchange_history(default_conf, mocker):
+    """Live futures: read from BloFin's funding history (which ccxt supports)."""
+    now = datetime.now(UTC)
+    default_conf["dry_run"] = False
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    exchange._get_funding_fees_from_exchange = MagicMock(return_value=2.5)
+    result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
+    assert result == 2.5
+    exchange._get_funding_fees_from_exchange.assert_called_once_with("BTC/USDT:USDT", now)
+
+
+def test_blofin_get_funding_fees_live_swallows_exchange_error(default_conf, mocker, caplog):
+    """Live: ExchangeError logs a warning and returns 0.0."""
+    from freqtrade.exceptions import ExchangeError
+
+    now = datetime.now(UTC)
+    default_conf["dry_run"] = False
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    exchange._get_funding_fees_from_exchange = MagicMock(
+        side_effect=ExchangeError("api boom")
+    )
+    result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
+    assert result == 0.0
+    assert log_has_re(r"Could not update funding fees for BTC/USDT:USDT", caplog)
 
 
 # ─── dry_run_liquidation_price ───────────────────────────────────────────
