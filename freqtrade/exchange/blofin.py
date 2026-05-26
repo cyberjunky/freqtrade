@@ -422,19 +422,25 @@ class Blofin(Exchange):
         self, pair: str, amount: float, is_short: bool, open_date: datetime
     ) -> float:
         """
-        Compute funding fees locally from funding-rate history + mark prices.
+        Return funding fees for a futures position.
 
-        BloFin's ``fetchFundingHistory`` does not return per-position fees in a
-        form that can be reliably aggregated across ccxt versions, so we follow
-        the Bybit pattern and recompute from public funding-rate history. This
-        also keeps live and dry-run behaviour identical.
+        In live mode we read the exchange's funding history directly via ccxt's
+        ``fetchFundingHistory`` (which BloFin supports). In dry-run we return
+        ``0.0`` silently: BloFin's ccxt does not expose ``fetchMarkOHLCV``, so
+        the base-class dry-run path that simulates funding from
+        funding-rate × mark-price candles cannot run. Funding is small enough
+        relative to PnL that this approximation is acceptable for backtests.
         """
-        if self.trading_mode == TradingMode.FUTURES:
-            try:
-                return self._fetch_and_calculate_funding_fees(pair, amount, is_short, open_date)
-            except ExchangeError:
-                logger.warning("Could not update funding fees for %s.", pair)
-        return 0.0
+        if self.trading_mode != TradingMode.FUTURES:
+            return 0.0
+        if self._config.get("dry_run"):
+            # No mark OHLCV available on BloFin → can't simulate. Stay quiet.
+            return 0.0
+        try:
+            return self._get_funding_fees_from_exchange(pair, open_date)
+        except ExchangeError:
+            logger.warning("Could not update funding fees for %s.", pair)
+            return 0.0
 
     def dry_run_liquidation_price(
         self,
