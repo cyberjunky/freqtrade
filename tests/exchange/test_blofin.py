@@ -649,6 +649,46 @@ def test_blofin_get_funding_fees_live_swallows_exchange_error(default_conf, mock
     assert log_has_re(r"Could not update funding fees for BTC/USDT:USDT", caplog)
 
 
+# ─── get_maintenance_ratio_and_amt ───────────────────────────────────────
+
+
+def test_blofin_maintenance_ratio_from_locally_built_tiers(default_conf, mocker):
+    """
+    Base class gates this on exchange_has('fetchLeverageTiers') which is False
+    for BloFin. Our override must read directly from self._leverage_tiers.
+    """
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    exchange._leverage_tiers = {
+        "BTC/USDT:USDT": [
+            {
+                "minNotional": 0.0,
+                "maxNotional": None,
+                "maintenanceMarginRate": 0.005,
+                "maxLeverage": 100.0,
+                "maintAmt": None,
+            }
+        ]
+    }
+
+    mm, amt = exchange.get_maintenance_ratio_and_amt("BTC/USDT:USDT", 10_000.0)
+    assert mm == 0.005
+    assert amt is None
+
+
+def test_blofin_maintenance_ratio_unknown_pair_returns_default(default_conf, mocker):
+    """Pair not in tiers (e.g. wrong quote) → conservative default, no raise."""
+    default_conf["trading_mode"] = "futures"
+    default_conf["margin_mode"] = "isolated"
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    exchange._leverage_tiers = {}
+
+    mm, amt = exchange.get_maintenance_ratio_and_amt("WTF/USDT:USDT", 1_000.0)
+    assert mm == exchange._DEFAULT_MAINT_MARGIN_RATE
+    assert amt is None
+
+
 # ─── dry_run_liquidation_price ───────────────────────────────────────────
 
 

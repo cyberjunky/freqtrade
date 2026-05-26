@@ -478,6 +478,34 @@ class Blofin(Exchange):
             logger.warning("Could not update funding fees for %s.", pair)
             return 0.0
 
+    def get_maintenance_ratio_and_amt(
+        self, pair: str, notional_value: float
+    ) -> tuple[float, float | None]:
+        """
+        Look up maintenance margin from our locally-built leverage tiers.
+
+        The base implementation gates on ``exchange_has("fetchLeverageTiers")``
+        and falls through to ``raise ExchangeError`` when the exchange does
+        not advertise that capability. BloFin doesn't expose it (we synthesize
+        tiers in :meth:`load_leverage_tiers`), so without this override every
+        ``get_liquidation_price`` call would log "Unable to calculate
+        liquidation price" and silently leave trades with no liquidation
+        watchdog — a real risk in live futures trading.
+        """
+        if pair not in self._leverage_tiers:
+            # Pair was filtered out at load time (wrong quote / non-future).
+            # Use the conservative default so callers still get a usable value.
+            return (self._DEFAULT_MAINT_MARGIN_RATE, None)
+
+        pair_tiers = self._leverage_tiers[pair]
+        for tier in reversed(pair_tiers):
+            if notional_value >= tier["minNotional"]:
+                return (tier["maintenanceMarginRate"], tier["maintAmt"])
+        # minNotional=0 is guaranteed by load_leverage_tiers, so this is
+        # unreachable in practice — but stay defensive.
+        first = pair_tiers[0]
+        return (first["maintenanceMarginRate"], first["maintAmt"])
+
     def dry_run_liquidation_price(
         self,
         pair: str,
