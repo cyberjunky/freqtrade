@@ -114,12 +114,13 @@ class Blofin(Exchange):
         # See: https://docs.blofin.com (Public Data → Get Candlesticks).
         "ohlcv_candle_limit": 1440,
         "trades_has_history": True,
-        # WS is disabled on purpose: ccxt's blofin watch_ohlcv only ever emits the
-        # single *current forming* candle (timestamp == current period), never the
-        # multi-candle history freqtrade needs. That fails the reuse check in
-        # Exchange._build_ohlcv_dl_jobs every candle, so every pair falls back to
-        # REST anyway — WS would just add connection overhead and log spam.
-        "ws_enabled": False,
+        # WS works, but note: ccxt's blofin watch_ohlcv returns only the latest
+        # delta candle per call. freqtrade reads the full accumulating cache
+        # (exchange_ws.ohlcvs -> ccxt ohlcvs[pair][tf]), so candle reuse only
+        # kicks in once that cache holds >=2 candles. Expect "Couldn't reuse
+        # watch ... falling back to REST" during warmup (one timeframe period
+        # after start/reconnect — up to 4h for the 4h informative).
+        "ws_enabled": True,
     }
 
     _ft_has_futures: FtHas = {
