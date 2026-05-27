@@ -4,8 +4,9 @@ from unittest.mock import MagicMock, PropertyMock
 import ccxt
 import pytest
 
-from freqtrade.enums import MarginMode, TradingMode
+from freqtrade.enums import CandleType, MarginMode, TradingMode
 from freqtrade.exceptions import (
+    DDosProtection,
     InvalidOrderException,
     OperationalException,
     RetryableOrderError,
@@ -429,6 +430,63 @@ def test_blofin_get_balances_exception_paths(default_conf, mocker):
         "get_balances",
         "fetch_balance",
     )
+
+
+# ─── _async_get_candle_history (Cloudflare block) ────────────────────────
+
+
+_CLOUDFLARE_403_HTML = (
+    "blofin GET https://openapi.blofin.com/api/v1/market/candles?instId=BTC-USDT"
+    "&bar=5m&limit=1440 403 Forbidden <!DOCTYPE html><html><head>"
+    "<title>BloFin</title></head><body>"
+    "window._cf_chl_opt = {cRay: 'abc'} ... challenge-platform ... "
+    "We noticed that your IP address is from one of BloFin's restricted countries"
+    " or regions ...</body></html>"
+)
+
+
+async def test_blofin_candle_history_cloudflare_collapsed(default_conf, mocker):
+    """A Cloudflare 403 HTML page must collapse to a short DDosProtection."""
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+
+    async def boom(*args, **kwargs):
+        raise TemporaryError(
+            f"Could not fetch historical candle (OHLCV) data for BTC/USDT:USDT, 5m, "
+            f"futures due to ExchangeNotAvailable. Message: {_CLOUDFLARE_403_HTML}"
+        )
+
+    mocker.patch(f"{EXMS}._async_get_candle_history", side_effect=boom)
+
+    with pytest.raises(DDosProtection, match=r"Cloudflare \(403 challenge\)") as exc:
+        await exchange._async_get_candle_history(
+            "BTC/USDT:USDT", "5m", CandleType.FUTURES, None
+        )
+    # The huge HTML page must NOT be in the surfaced message
+    assert "DOCTYPE" not in str(exc.value)
+    assert "_cf_chl" not in str(exc.value)
+
+
+async def test_blofin_candle_history_other_error_passthrough(default_conf, mocker):
+    """A non-Cloudflare error must propagate unchanged (not be relabelled)."""
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+
+    async def boom(*args, **kwargs):
+        raise TemporaryError("ordinary network hiccup")
+
+    mocker.patch(f"{EXMS}._async_get_candle_history", side_effect=boom)
+
+    with pytest.raises(TemporaryError, match="ordinary network hiccup"):
+        await exchange._async_get_candle_history(
+            "BTC/USDT:USDT", "5m", CandleType.FUTURES, None
+        )
+
+
+def test_blofin_is_cloudflare_block_detection(default_conf, mocker):
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    assert exchange._is_cloudflare_block("blah 403 Forbidden blah")
+    assert exchange._is_cloudflare_block("... window._cf_chl_opt ...")
+    assert exchange._is_cloudflare_block("restricted countries or regions")
+    assert not exchange._is_cloudflare_block("Could not fetch: connection reset")
 
 
 # ─── get_tickers (quoteVolume fixup) ─────────────────────────────────────
