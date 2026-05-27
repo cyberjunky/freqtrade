@@ -114,7 +114,12 @@ class Blofin(Exchange):
         # See: https://docs.blofin.com (Public Data → Get Candlesticks).
         "ohlcv_candle_limit": 1440,
         "trades_has_history": True,
-        "ws_enabled": True,
+        # WS is disabled on purpose: ccxt's blofin watch_ohlcv only ever emits the
+        # single *current forming* candle (timestamp == current period), never the
+        # multi-candle history freqtrade needs. That fails the reuse check in
+        # Exchange._build_ohlcv_dl_jobs every candle, so every pair falls back to
+        # REST anyway — WS would just add connection overhead and log spam.
+        "ws_enabled": False,
     }
 
     _ft_has_futures: FtHas = {
