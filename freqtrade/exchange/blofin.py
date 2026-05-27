@@ -18,7 +18,7 @@ from datetime import datetime
 import ccxt
 
 from freqtrade.constants import BuySell
-from freqtrade.enums import MarginMode, TradingMode
+from freqtrade.enums import CandleType, MarginMode, TradingMode
 from freqtrade.exceptions import (
     DDosProtection,
     ExchangeError,
@@ -29,7 +29,13 @@ from freqtrade.exceptions import (
 )
 from freqtrade.exchange import Exchange
 from freqtrade.exchange.common import API_FETCH_ORDER_RETRY_COUNT, retrier
-from freqtrade.exchange.exchange_types import CcxtBalances, CcxtOrder, FtHas, LeverageTier
+from freqtrade.exchange.exchange_types import (
+    CcxtBalances,
+    CcxtOrder,
+    FtHas,
+    LeverageTier,
+    OHLCVResponse,
+)
 from freqtrade.misc import deep_merge_dicts
 
 
@@ -461,6 +467,53 @@ class Blofin(Exchange):
             except (TypeError, ValueError):
                 continue
         return tickers
+
+    # Markers identifying BloFin's Cloudflare challenge / 403 block page. These
+    # come back as a full HTML document instead of JSON; we collapse them to a
+    # single log line instead of dumping the whole page on every retry.
+    _CLOUDFLARE_MARKERS = (
+        "_cf_chl",
+        "cf-chl",
+        "challenge-platform",
+        "cloudflare",
+        "enable javascript and cookies",
+        "restricted countries",
+        "403 forbidden",
+    )
+
+    def _is_cloudflare_block(self, text: str) -> bool:
+        low = text.lower()
+        return any(marker in low for marker in self._CLOUDFLARE_MARKERS)
+
+    async def _async_get_candle_history(
+        self,
+        pair: str,
+        timeframe: str,
+        candle_type: CandleType,
+        since_ms: int | None = None,
+    ) -> OHLCVResponse:
+        """
+        Wrap the base OHLCV fetch to collapse BloFin's Cloudflare 403 challenge
+        pages into a single concise log line.
+
+        BloFin sits behind Cloudflare, which intermittently answers the public
+        candles endpoint with a full HTML challenge page instead of JSON. The
+        base class embeds that entire page in the exception message, flooding
+        the log on every retry. We detect the page and re-raise a short
+        DDosProtection (retryable, with backoff) so the request still recovers
+        once Cloudflare lets it through, without the HTML wall.
+        """
+        try:
+            return await super()._async_get_candle_history(
+                pair, timeframe, candle_type, since_ms
+            )
+        except (DDosProtection, TemporaryError, OperationalException) as e:
+            if self._is_cloudflare_block(str(e)):
+                raise DDosProtection(
+                    f"BloFin OHLCV blocked by Cloudflare (403 challenge) for "
+                    f"{pair} {timeframe} {candle_type} — retrying with backoff."
+                ) from None
+            raise
 
     def get_funding_fees(
         self, pair: str, amount: float, is_short: bool, open_date: datetime
