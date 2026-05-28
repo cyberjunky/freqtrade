@@ -9,6 +9,8 @@ user_data/*
 !user_data/notebooks
 !user_data/models
 !user_data/freqaimodels
+!user_data/pairlist
+!user_data/pairlist/*.py
 user_data/freqaimodels/*
 user_data/models/*
 user_data/notebooks/*
