@@ -449,17 +449,17 @@ _CLOUDFLARE_403_HTML = (
 async def test_blofin_candle_history_cloudflare_collapsed(default_conf, mocker):
     """A Cloudflare 403 HTML page must collapse to a short DDosProtection.
 
-    The override now re-implements the base fetch (rather than wrapping it) so
-    that detection runs before TemporaryError is constructed — keeping the per-
-    retry warning short. The fixture therefore raises the ccxt exception at the
-    fetch_ohlcv layer, which is where Cloudflare actually surfaces in prod.
+    The override fetches candles via ccxt's generic ``request`` (BloFin's REST
+    candle endpoints) and detects the block before TemporaryError is constructed,
+    keeping the per-retry warning short. The fixture therefore raises the ccxt
+    exception at the ``request`` layer, where Cloudflare actually surfaces in prod.
     """
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
 
     async def boom(*args, **kwargs):
         raise ccxt.ExchangeNotAvailable(_CLOUDFLARE_403_HTML)
 
-    exchange._api_async.fetch_ohlcv = boom
+    exchange._api_async.request = boom
 
     with pytest.raises(DDosProtection, match=r"Cloudflare \(403 challenge\)") as exc:
         await exchange._async_get_candle_history(
@@ -477,7 +477,7 @@ async def test_blofin_candle_history_other_error_passthrough(default_conf, mocke
     async def boom(*args, **kwargs):
         raise ccxt.ExchangeError("ordinary network hiccup")
 
-    exchange._api_async.fetch_ohlcv = boom
+    exchange._api_async.request = boom
 
     with pytest.raises(TemporaryError, match="ordinary network hiccup"):
         await exchange._async_get_candle_history(
@@ -491,6 +491,50 @@ def test_blofin_is_cloudflare_block_detection(default_conf, mocker):
     assert exchange._is_cloudflare_block("... window._cf_chl_opt ...")
     assert exchange._is_cloudflare_block("restricted countries or regions")
     assert not exchange._is_cloudflare_block("Could not fetch: connection reset")
+
+
+async def test_blofin_mark_candles_use_after_cursor(default_conf, mocker):
+    """MARK candles must hit /market/mark-price-candles with an `after` backfill
+    cursor, and 6-col mark rows (no volume) must parse with volume=0, ascending.
+
+    Covers the two fixes: historic backfill via `after` (ccxt's fetch_ohlcv never
+    sends it) and mark/index endpoint routing (ccxt reports them unsupported).
+    """
+    real = ccxt.blofin()  # sync client: pure safe_* helpers + timeframes, no session
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    exchange._api_async.safe_list = real.safe_list
+    exchange._api_async.safe_string = real.safe_string
+    exchange._api_async.timeframes = real.timeframes
+    exchange._api.market = lambda _pair: {"id": "BTC-USDT"}
+
+    captured: dict = {}
+
+    async def fake_request(path, api="public", method="GET", params=None, *a, **k):
+        captured["path"] = path
+        captured["params"] = params
+        # BloFin returns newest-first; mark rows are [ts, o, h, l, c, confirm]
+        return {
+            "code": "0",
+            "data": [
+                ["1780000600000", "100.5", "101", "100", "100.8", "1"],
+                ["1780000300000", "100.0", "100.6", "99.8", "100.4", "1"],
+            ],
+        }
+
+    exchange._api_async.request = fake_request
+
+    since = 1780000000000
+    _, _, ct, data, _ = await exchange._async_get_candle_history(
+        "BTC/USDT:USDT", "1h", CandleType.MARK, since, count=0
+    )
+    assert ct == CandleType.MARK
+    assert captured["path"] == "market/mark-price-candles"
+    assert captured["params"]["bar"] == "1H"
+    # after = since + ohlcv_candle_limit(1440) * one 1h candle in ms
+    assert captured["params"]["after"] == since + 1440 * 3_600_000
+    # parsed ascending, 6 cols each, volume forced to 0 (mark rows carry none)
+    assert [r[0] for r in data] == [1780000300000, 1780000600000]
+    assert all(len(r) == 6 and r[5] == 0.0 for r in data)
 
 
 # ─── get_tickers (quoteVolume fixup) ─────────────────────────────────────
