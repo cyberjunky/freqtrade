@@ -496,9 +496,11 @@ class Blofin(Exchange):
                 continue
         return tickers
 
-    # Markers identifying BloFin's Cloudflare challenge / 403 block page. These
-    # come back as a full HTML document instead of JSON; we collapse them to a
-    # single log line instead of dumping the whole page on every retry.
+    # Markers identifying BloFin's Cloudflare interstitials — both the 403
+    # JS-challenge page and the 429 "error 1015 / you are being rate limited"
+    # temporary-IP-ban page. Both arrive as a full HTML document instead of JSON;
+    # we collapse them to a single log line and treat them as retryable
+    # DDosProtection (so the backoff kicks in) instead of dumping the whole page.
     _CLOUDFLARE_MARKERS = (
         "_cf_chl",
         "cf-chl",
@@ -507,11 +509,48 @@ class Blofin(Exchange):
         "enable javascript and cookies",
         "restricted countries",
         "403 forbidden",
+        "429 too many requests",
+        "too many requests",
+        "you are being rate limited",
+        "error 1015",
+        "1015",
     )
 
     def _is_cloudflare_block(self, text: str) -> bool:
         low = text.lower()
         return any(marker in low for marker in self._CLOUDFLARE_MARKERS)
+
+    async def _api_reload_markets(self, reload: bool = False) -> None:
+        """
+        Mirror the base markets reload, but collapse BloFin's Cloudflare 429/1015
+        rate-limit (and 403) HTML pages into a short, retryable DDosProtection.
+
+        The base wraps ccxt's ExchangeNotAvailable as a plain TemporaryError,
+        which the retrier retries WITHOUT backoff and logs verbatim — so a 429
+        ban dumps the whole Cloudflare page and hammers again immediately.
+        Routing it through DDosProtection makes the retrier apply its exponential
+        backoff and keeps the log to one line.
+        """
+        try:
+            await self._api_async.load_markets(reload=reload, params={})
+        except ccxt.DDoSProtection as e:
+            raise DDosProtection(e) from e
+        except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
+            if self._is_cloudflare_block(str(e)):
+                raise DDosProtection(
+                    "BloFin reload_markets blocked by Cloudflare "
+                    "(429 rate-limit / 403 challenge) — retrying with backoff."
+                ) from None
+            raise TemporaryError(
+                f"Error in reload_markets due to {e.__class__.__name__}. Message: {e}"
+            ) from e
+        except ccxt.BaseError as e:
+            if self._is_cloudflare_block(str(e)):
+                raise DDosProtection(
+                    "BloFin reload_markets blocked by Cloudflare "
+                    "(429 rate-limit / 403 challenge) — retrying with backoff."
+                ) from None
+            raise TemporaryError(e) from e
 
     @retrier_async
     async def _async_get_candle_history(

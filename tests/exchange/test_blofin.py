@@ -491,6 +491,28 @@ def test_blofin_is_cloudflare_block_detection(default_conf, mocker):
     assert exchange._is_cloudflare_block("... window._cf_chl_opt ...")
     assert exchange._is_cloudflare_block("restricted countries or regions")
     assert not exchange._is_cloudflare_block("Could not fetch: connection reset")
+    # 429/1015 rate-limit ban page must also register as a Cloudflare block
+    assert exchange._is_cloudflare_block("429 Too Many Requests ... Error 1015 ...")
+    assert exchange._is_cloudflare_block("You are being rate limited")
+
+
+async def test_blofin_reload_markets_ratelimit_collapsed(default_conf, mocker):
+    """A Cloudflare 429/1015 page during reload_markets must collapse to a short,
+    retryable DDosProtection (so the retrier backs off) — not a TemporaryError
+    carrying the whole HTML page (which retries with no backoff)."""
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+
+    async def boom(*args, **kwargs):
+        raise ccxt.ExchangeNotAvailable(
+            "blofin GET https://openapi.blofin.com/api/v1/market/instruments "
+            "429 Too Many Requests <html>...You are being rate limited..."
+            "Error 1015...Cloudflare...</html>"
+        )
+
+    exchange._api_async.load_markets = boom
+
+    with pytest.raises(DDosProtection, match=r"429 rate-limit"):
+        await exchange._api_reload_markets(reload=True)
 
 
 async def test_blofin_mark_candles_use_after_cursor(default_conf, mocker):
