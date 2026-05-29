@@ -13,7 +13,6 @@ generic :class:`Exchange` for its quirks:
 """
 
 import logging
-from copy import deepcopy
 from datetime import datetime
 
 import ccxt
@@ -30,6 +29,7 @@ from freqtrade.exceptions import (
 )
 from freqtrade.exchange import Exchange
 from freqtrade.exchange.common import API_FETCH_ORDER_RETRY_COUNT, retrier, retrier_async
+from freqtrade.exchange.exchange_utils_timeframe import timeframe_to_msecs
 from freqtrade.exchange.exchange_types import (
     CcxtBalances,
     CcxtOrder,
@@ -183,6 +183,16 @@ class Blofin(Exchange):
         self._api.has["fetchOrder"] = True
         if self._api_async:
             self._api_async.has["fetchOrder"] = True
+
+        # BloFin's REST API exposes historical mark- and index-price candles
+        # (/market/mark-price-candles, /market/index-candles), but ccxt declares
+        # fetchMarkOHLCV/fetchIndexOHLCV False. We implement them in
+        # _async_get_candle_history, so advertise support here to satisfy
+        # freqtrade's candle-type checks (needed for futures backtesting).
+        for _client in (self._api, self._api_async):
+            if _client:
+                _client.has["fetchMarkOHLCV"] = True
+                _client.has["fetchIndexOHLCV"] = True
 
         if self._config.get("dry_run") or self.trading_mode != TradingMode.FUTURES:
             return
@@ -512,37 +522,36 @@ class Blofin(Exchange):
         since_ms: int | None = None,
     ) -> OHLCVResponse:
         """
-        Reimplements the base OHLCV fetch so Cloudflare 403 challenge pages
-        collapse to a single log line.
+        Fetch OHLCV(-like) candles, fixing two BloFin/ccxt gaps:
 
-        BloFin sits behind Cloudflare, which intermittently answers the public
-        candles endpoint with a full HTML challenge page. The base method wraps
-        that page into a TemporaryError carrying the entire HTML; the
-        @retrier_async decorator then logs that wrapped message verbatim on
-        every retry attempt — flooding the log even when our outer catch fires.
-        Detecting the block here, before TemporaryError is constructed, keeps
-        the per-retry warning short. Non-Cloudflare errors are wrapped exactly
-        as the base implementation does.
+        1. **Historic backfill.** ccxt's BloFin ``fetch_ohlcv`` never sends the
+           ``after`` cursor, so it only ever returns the most recent ~``limit``
+           candles regardless of ``since`` — no real history. We page with
+           ``after`` (see :meth:`_fetch_blofin_ohlcv`) so freqtrade's per-window
+           backfill works.
+        2. **Mark/index candles.** ccxt advertises ``fetchMarkOHLCV = False``,
+           but BloFin exposes ``/market/mark-price-candles`` and
+           ``/market/index-candles``; we route those candle types there. This is
+           what makes futures backtesting (which needs mark candles) possible.
+
+        Cloudflare 403 challenge pages are collapsed to a single retryable
+        DDosProtection log line instead of dumping the HTML on every retry.
         """
         try:
-            params = deepcopy(self._ft_has.get("ohlcv_params", {}))
             candle_limit = self.ohlcv_candle_limit(
                 timeframe, candle_type=candle_type, since_ms=since_ms
             )
 
-            if candle_type != CandleType.FUNDING_RATE:
-                if candle_type and candle_type not in (CandleType.SPOT, CandleType.FUTURES):
-                    self.verify_candle_type_support(candle_type)
-                    params.update({"price": str(candle_type)})
-                data = await self._api_async.fetch_ohlcv(
-                    pair, timeframe=timeframe, since=since_ms, limit=candle_limit, params=params
-                )
-            else:
+            if candle_type == CandleType.FUNDING_RATE:
                 data = await self._fetch_funding_rate_history(
                     pair=pair,
                     timeframe=timeframe,
                     limit=candle_limit,
                     since_ms=since_ms,
+                )
+            else:
+                data = await self._fetch_blofin_ohlcv(
+                    pair, timeframe, candle_type, since_ms, candle_limit
                 )
             try:
                 if data and data[0][0] > data[-1][0]:
@@ -581,6 +590,65 @@ class Blofin(Exchange):
                 f"Could not fetch historical candle (OHLCV) data for "
                 f"{pair}, {timeframe}, {candle_type}. Message: {e}"
             ) from e
+
+    # BloFin candle endpoints by candle type. ccxt only maps "market/candles";
+    # the mark/index siblings are reachable via the generic request signer.
+    _OHLCV_ENDPOINTS: dict = {
+        CandleType.MARK: "market/mark-price-candles",
+        CandleType.INDEX: "market/index-candles",
+    }
+
+    async def _fetch_blofin_ohlcv(
+        self,
+        pair: str,
+        timeframe: str,
+        candle_type: CandleType,
+        since_ms: int | None,
+        candle_limit: int,
+    ) -> list:
+        """
+        Fetch OHLCV(-like) candles straight from BloFin's REST candle endpoints.
+
+        ccxt's ``fetch_ohlcv`` is unusable here: it never sends the ``after``
+        cursor (so only the most recent ~``limit`` candles come back, no history)
+        and has no mark/index support. BloFin paginates with ``after`` = "candles
+        strictly older than this timestamp", returned newest-first (descending).
+        freqtrade's historic loop tiles forward in ``one_call``-sized windows, so
+        each window's ``since`` becomes the upper bound ``after = since + one_call``
+        to pull exactly ``[since, since + one_call)``. With ``since_ms`` None
+        (fresh/latest refresh) we omit ``after`` and take the most recent candles.
+
+        Row shapes: regular candles are
+        ``[ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]`` (9 cols); mark and
+        index candles are ``[ts, o, h, l, c, confirm]`` (6 cols, no volume).
+        """
+        api = self._api_async
+        path = self._OHLCV_ENDPOINTS.get(candle_type, "market/candles")
+        request: dict = {
+            "instId": self._api.market(pair)["id"],
+            "bar": api.safe_string(api.timeframes, timeframe, timeframe),
+            "limit": candle_limit,
+        }
+        if since_ms is not None:
+            one_call = candle_limit * timeframe_to_msecs(timeframe)
+            request["after"] = since_ms + one_call
+
+        response = await api.request(path, "public", "GET", request)
+        rows = api.safe_list(response, "data", []) or []
+        has_volume = candle_type not in (CandleType.MARK, CandleType.INDEX)
+        candles: list = []
+        for r in rows:
+            candles.append(
+                [
+                    int(r[0]),
+                    float(r[1]),
+                    float(r[2]),
+                    float(r[3]),
+                    float(r[4]),
+                    float(r[5]) if has_volume and len(r) > 6 else 0.0,
+                ]
+            )
+        return candles
 
     def get_funding_fees(
         self, pair: str, amount: float, is_short: bool, open_date: datetime
