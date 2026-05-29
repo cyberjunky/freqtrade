@@ -379,7 +379,7 @@ def test_blofin_extract_maint_margin_rate_synonyms(default_conf, mocker):
 # ─── get_balances ────────────────────────────────────────────────────────
 
 
-def test_blofin_get_balances_defaults_to_futures(default_conf, mocker):
+def test_blofin_get_balances_defaults_to_swap(default_conf, mocker):
     default_conf["dry_run"] = False
     api_mock = MagicMock()
     api_mock.fetch_balance = MagicMock(
@@ -388,7 +388,8 @@ def test_blofin_get_balances_defaults_to_futures(default_conf, mocker):
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
 
     result = exchange.get_balances()
-    api_mock.fetch_balance.assert_called_once_with({"accountType": "futures"})
+    # 'swap' routes ccxt to the account-balance endpoint (equity / availableEquity)
+    api_mock.fetch_balance.assert_called_once_with({"accountType": "swap"})
     # summary keys stripped, per-currency entry preserved
     assert "info" not in result
     assert "free" not in result
@@ -405,7 +406,7 @@ def test_blofin_get_balances_merges_caller_params(default_conf, mocker):
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
 
     exchange.get_balances({"foo": "bar"})
-    api_mock.fetch_balance.assert_called_once_with({"accountType": "futures", "foo": "bar"})
+    api_mock.fetch_balance.assert_called_once_with({"accountType": "swap", "foo": "bar"})
 
 
 def test_blofin_get_balances_caller_overrides_account_type(default_conf, mocker):
@@ -446,20 +447,23 @@ _CLOUDFLARE_403_HTML = (
 
 
 async def test_blofin_candle_history_cloudflare_collapsed(default_conf, mocker):
-    """A Cloudflare 403 HTML page must collapse to a short DDosProtection."""
+    """A Cloudflare 403 HTML page must collapse to a short DDosProtection.
+
+    The override now re-implements the base fetch (rather than wrapping it) so
+    that detection runs before TemporaryError is constructed — keeping the per-
+    retry warning short. The fixture therefore raises the ccxt exception at the
+    fetch_ohlcv layer, which is where Cloudflare actually surfaces in prod.
+    """
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
 
     async def boom(*args, **kwargs):
-        raise TemporaryError(
-            f"Could not fetch historical candle (OHLCV) data for BTC/USDT:USDT, 5m, "
-            f"futures due to ExchangeNotAvailable. Message: {_CLOUDFLARE_403_HTML}"
-        )
+        raise ccxt.ExchangeNotAvailable(_CLOUDFLARE_403_HTML)
 
-    mocker.patch(f"{EXMS}._async_get_candle_history", side_effect=boom)
+    exchange._api_async.fetch_ohlcv = boom
 
     with pytest.raises(DDosProtection, match=r"Cloudflare \(403 challenge\)") as exc:
         await exchange._async_get_candle_history(
-            "BTC/USDT:USDT", "5m", CandleType.FUTURES, None
+            "BTC/USDT:USDT", "5m", CandleType.FUTURES, None, count=0
         )
     # The huge HTML page must NOT be in the surfaced message
     assert "DOCTYPE" not in str(exc.value)
@@ -467,17 +471,17 @@ async def test_blofin_candle_history_cloudflare_collapsed(default_conf, mocker):
 
 
 async def test_blofin_candle_history_other_error_passthrough(default_conf, mocker):
-    """A non-Cloudflare error must propagate unchanged (not be relabelled)."""
+    """A non-Cloudflare ccxt error must wrap as TemporaryError with the message intact."""
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
 
     async def boom(*args, **kwargs):
-        raise TemporaryError("ordinary network hiccup")
+        raise ccxt.ExchangeError("ordinary network hiccup")
 
-    mocker.patch(f"{EXMS}._async_get_candle_history", side_effect=boom)
+    exchange._api_async.fetch_ohlcv = boom
 
     with pytest.raises(TemporaryError, match="ordinary network hiccup"):
         await exchange._async_get_candle_history(
-            "BTC/USDT:USDT", "5m", CandleType.FUTURES, None
+            "BTC/USDT:USDT", "5m", CandleType.FUTURES, None, count=0
         )
 
 

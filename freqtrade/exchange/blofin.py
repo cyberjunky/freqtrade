@@ -13,6 +13,7 @@ generic :class:`Exchange` for its quirks:
 """
 
 import logging
+from copy import deepcopy
 from datetime import datetime
 
 import ccxt
@@ -28,7 +29,7 @@ from freqtrade.exceptions import (
     TemporaryError,
 )
 from freqtrade.exchange import Exchange
-from freqtrade.exchange.common import API_FETCH_ORDER_RETRY_COUNT, retrier
+from freqtrade.exchange.common import API_FETCH_ORDER_RETRY_COUNT, retrier, retrier_async
 from freqtrade.exchange.exchange_types import (
     CcxtBalances,
     CcxtOrder,
@@ -149,11 +150,21 @@ class Blofin(Exchange):
 
     @property
     def _ccxt_config(self) -> dict:
+        # BloFin's public endpoints sit behind Cloudflare, which serves a 403
+        # JS-challenge to non-browser clients. ccxt's default UA
+        # ('python-requests/...') is a classic bot trigger; a real browser UA
+        # sharply cuts the challenge rate on the OHLCV endpoint. Applied to both
+        # the sync and async ccxt clients (freqtrade merges _ccxt_config into each).
+        config: dict = {
+            "userAgent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+        }
         # Be explicit about swap mode — ccxt's BloFin currently defaults to swap,
         # but pinning it survives future ccxt default changes.
-        config: dict = {}
         if self.trading_mode == TradingMode.FUTURES:
-            config.update({"options": {"defaultType": "swap"}})
+            config["options"] = {"defaultType": "swap"}
         return deep_merge_dicts(config, super()._ccxt_config)
 
     @retrier
@@ -408,13 +419,20 @@ class Blofin(Exchange):
     @retrier
     def get_balances(self, params: dict | None = None) -> CcxtBalances:
         """
-        Fetch futures account balance.
+        Fetch the futures TRADING-ACCOUNT balance (equity / available margin).
 
-        BloFin separates funding and futures wallets; we default to the
-        ``futures`` account but merge in caller-supplied params so explicit
-        overrides win.
+        BloFin exposes two balance views for the futures side, and ccxt routes
+        them by ``accountType``:
+          * ``accountType='futures'`` → ``/asset/balances`` → wallet holdings
+            (total=balance, free=available). Open-position margin is NOT reflected
+            there, so free≈total — misleading for position sizing.
+          * ``accountType='swap'``    → ``/account/balance`` → trading account
+            (total=equity incl. unrealized PnL, free=availableEquity = real free
+            margin, used=margin locked in positions).
+        We default to ``swap`` so freqtrade sizes against true available margin.
+        Caller-supplied params win (e.g. ``{'accountType': 'funding'}``).
         """
-        merged_params = {"accountType": "futures", **(params or {})}
+        merged_params = {"accountType": "swap", **(params or {})}
         try:
             balances = self._api.fetch_balance(merged_params)
             balances.pop("info", None)
@@ -485,6 +503,7 @@ class Blofin(Exchange):
         low = text.lower()
         return any(marker in low for marker in self._CLOUDFLARE_MARKERS)
 
+    @retrier_async
     async def _async_get_candle_history(
         self,
         pair: str,
@@ -493,27 +512,75 @@ class Blofin(Exchange):
         since_ms: int | None = None,
     ) -> OHLCVResponse:
         """
-        Wrap the base OHLCV fetch to collapse BloFin's Cloudflare 403 challenge
-        pages into a single concise log line.
+        Reimplements the base OHLCV fetch so Cloudflare 403 challenge pages
+        collapse to a single log line.
 
         BloFin sits behind Cloudflare, which intermittently answers the public
-        candles endpoint with a full HTML challenge page instead of JSON. The
-        base class embeds that entire page in the exception message, flooding
-        the log on every retry. We detect the page and re-raise a short
-        DDosProtection (retryable, with backoff) so the request still recovers
-        once Cloudflare lets it through, without the HTML wall.
+        candles endpoint with a full HTML challenge page. The base method wraps
+        that page into a TemporaryError carrying the entire HTML; the
+        @retrier_async decorator then logs that wrapped message verbatim on
+        every retry attempt — flooding the log even when our outer catch fires.
+        Detecting the block here, before TemporaryError is constructed, keeps
+        the per-retry warning short. Non-Cloudflare errors are wrapped exactly
+        as the base implementation does.
         """
         try:
-            return await super()._async_get_candle_history(
-                pair, timeframe, candle_type, since_ms
+            params = deepcopy(self._ft_has.get("ohlcv_params", {}))
+            candle_limit = self.ohlcv_candle_limit(
+                timeframe, candle_type=candle_type, since_ms=since_ms
             )
-        except (DDosProtection, TemporaryError, OperationalException) as e:
+
+            if candle_type != CandleType.FUNDING_RATE:
+                if candle_type and candle_type not in (CandleType.SPOT, CandleType.FUTURES):
+                    self.verify_candle_type_support(candle_type)
+                    params.update({"price": str(candle_type)})
+                data = await self._api_async.fetch_ohlcv(
+                    pair, timeframe=timeframe, since=since_ms, limit=candle_limit, params=params
+                )
+            else:
+                data = await self._fetch_funding_rate_history(
+                    pair=pair,
+                    timeframe=timeframe,
+                    limit=candle_limit,
+                    since_ms=since_ms,
+                )
+            try:
+                if data and data[0][0] > data[-1][0]:
+                    data = sorted(data, key=lambda x: x[0])
+            except IndexError:
+                logger.exception("Error loading %s. Result was %s.", pair, data)
+                return pair, timeframe, candle_type, [], self._ohlcv_partial_candle
+            return (
+                pair,
+                timeframe,
+                candle_type,
+                data,
+                self._ohlcv_partial_candle if candle_type != CandleType.FUNDING_RATE else False,
+            )
+
+        except ccxt.NotSupported as e:
+            raise OperationalException(
+                f"Exchange {self._api.name} does not support fetching historical "
+                f"candle (OHLCV) data. Message: {e}"
+            ) from e
+        except ccxt.DDoSProtection as e:
+            raise DDosProtection(e) from e
+        except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             if self._is_cloudflare_block(str(e)):
                 raise DDosProtection(
                     f"BloFin OHLCV blocked by Cloudflare (403 challenge) for "
                     f"{pair} {timeframe} {candle_type} — retrying with backoff."
                 ) from None
-            raise
+            raise TemporaryError(
+                f"Could not fetch historical candle (OHLCV) data "
+                f"for {pair}, {timeframe}, {candle_type} due to {e.__class__.__name__}. "
+                f"Message: {e}"
+            ) from e
+        except ccxt.BaseError as e:
+            raise OperationalException(
+                f"Could not fetch historical candle (OHLCV) data for "
+                f"{pair}, {timeframe}, {candle_type}. Message: {e}"
+            ) from e
 
     def get_funding_fees(
         self, pair: str, amount: float, is_short: bool, open_date: datetime
