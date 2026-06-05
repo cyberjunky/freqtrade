@@ -26,6 +26,62 @@ from freqtrade.util.datetime_helpers import dt_from_ts
 logger = logging.getLogger(__name__)
 
 
+def _patch_ccxt_ws_error_handling() -> None:
+    """
+    ccxt's hyperliquid.handle_error_message passes a plain ``str`` to
+    ``client.reject()``. asyncio's ``future.set_exception()`` requires an actual
+    Exception instance, so the WS receive callback dies with
+    ``TypeError: invalid exception object`` on every error frame. Worse, the
+    ``channel == 'error'`` branch rejects with no message_hash, which fans the
+    rejection out to *every* pending subscription, killing all WS streams at once.
+
+    Wrap the string in a ccxt.ExchangeError so reject() works and only the
+    affected future(s) are settled cleanly (freqtrade then reconnects).
+    """
+    try:
+        import ccxt.pro as ccxtpro
+    except ImportError:
+        return
+
+    hl = ccxtpro.hyperliquid
+    if getattr(hl, "_ft_ws_error_patch", False):
+        return
+
+    def handle_error_message(self, client, message):
+        channel = self.safe_string(message, "channel", "")
+        if channel == "error":
+            ret_msg = self.safe_string(message, "data", "")
+            client.reject(ccxt.ExchangeError(self.id + " " + ret_msg))
+            return True
+        data = self.safe_dict(message, "data", {})
+        id = self.safe_string(message, "id")
+        if id is None:
+            id = self.safe_string(data, "id")
+        response = self.safe_dict(data, "response", {})
+        payload = self.safe_dict(response, "payload", {})
+        status = self.safe_string(payload, "status")
+        if status is not None and status != "ok":
+            client.reject(ccxt.ExchangeError(self.id + " " + self.json(payload)), id)
+            return True
+        type = self.safe_string(payload, "type")
+        if type == "error":
+            client.reject(ccxt.ExchangeError(self.id + " " + self.json(payload)), id)
+            return True
+        try:
+            self.handle_errors(0, "", "", "", {}, self.json(payload), payload, {}, {})
+        except Exception as e:
+            client.reject(e, id)
+            return True
+        return False
+
+    hl.handle_error_message = handle_error_message
+    hl._ft_ws_error_patch = True
+    logger.debug("Patched ccxt.pro hyperliquid.handle_error_message for WS error handling.")
+
+
+_patch_ccxt_ws_error_handling()
+
+
 class Hyperliquid(Exchange):
     """Hyperliquid exchange class.
     Contains adjustments needed for Freqtrade to work with this exchange.
