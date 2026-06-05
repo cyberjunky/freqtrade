@@ -578,6 +578,22 @@ function updateChart(initial = false) {
     options.series.push(tradesSeries);
   }
 
+  // Give every series a coloured-dot rich style keyed by its own colour, so the
+  // tooltip (which lists ALL series, every subplot) shows each value with the
+  // colour of its chart line.
+  if (Array.isArray(options.series)) {
+    const rich = ((options.tooltip as any)?.textStyle?.rich ?? {}) as Record<
+      string,
+      { color: string }
+    >;
+    options.series.forEach((s: any, i: number) => {
+      const c = s?.itemStyle?.color ?? s?.lineStyle?.color ?? '#ffffff';
+      const dotKey = `dot${i}`;
+      s.__dotKey = dotKey;
+      rich[dotKey] = { color: typeof c === 'string' ? c : '#ffffff' };
+    });
+  }
+
   // Merge this into original data
   Object.assign(chartOptions.value, options);
   // console.log('chartOptions', chartOptions.value);
@@ -618,62 +634,73 @@ function initializeChartOptions() {
       trigger: 'axis',
       // richText renders on the CANVAS, so the box is never clipped or scrolled
       // by a DOM container — that DOM scroll is exactly what HTML mode caused.
-      // Colored dots come from p.marker; name/value columns via `rich` styles;
-      // one date/time header for the whole crosshair (not per subplot).
+      // We iterate ALL series (every subplot) at the hovered candle, not just the
+      // series under the cursor, so the full indicator list always shows — needed
+      // to see which indicator is blocking an entry. Coloured dots via per-series
+      // `rich` styles (assigned below), name/value columns, single date header.
       renderMode: 'richText',
       formatter: (params) => {
-        const rows = Array.isArray(params) ? params : params ? [params] : [];
-        const parts: string[] = [];
-        // Header: single date/time for the whole crosshair.
         try {
+          const rows = Array.isArray(params) ? params : params ? [params] : [];
+          const di = rows[0]?.dataIndex;
+          const allSeries = Array.isArray(options.series) ? (options.series as any[]) : [];
+          if (di == null || !Array.isArray(dataset) || !dataset[di]) return ' ';
+          const drow = dataset[di];
+          const parts: string[] = [];
           const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
           if (h != null && h !== '') parts.push(`{hdr|${h}}`);
-        } catch {
-          /* ignore */
-        }
-        let prevKey: unknown;
-        const seen = new Set<string>();
-        for (const p of rows) {
-          try {
-            const row = p?.value;
-            const marker = typeof p?.marker === 'string' ? p.marker : '';
-            const key = p?.axisIndex ?? 0;
-            let line = '';
-            if (p?.seriesName === 'Candles') {
-              if (Array.isArray(row) && row[colOpen] != null) {
-                line =
-                  `${marker}{n|Candles}` +
-                  `{v|O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}}`;
+          let prevKey: unknown;
+          const seen = new Set<string>();
+          for (const s of allSeries) {
+            try {
+              if (s?.tooltip && s.tooltip.show === false) continue; // area fills
+              const name = s?.name;
+              if (!name) continue;
+              const dot = s?.__dotKey ? `{${s.__dotKey}|●} ` : '';
+              const key = s?.xAxisIndex ?? 0;
+              let line = '';
+              if (name === 'Candles') {
+                if (drow[colOpen] != null) {
+                  line =
+                    `${dot}{n|Candles}` +
+                    `{v|O ${drow[colOpen]} H ${drow[colHigh]} L ${drow[colLow]} C ${drow[colClose]}}`;
+                }
+              } else if (s?.type === 'scatter') {
+                // Entry/Exit signal markers — only when present at this candle.
+                const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
+                const v = yEnc != null ? drow[yEnc] : undefined;
+                if (v == null) continue;
+                const tagCol = name === 'Exit' ? colExitTag : colEnterTag;
+                const tag = drow[tagCol];
+                line = `${dot}{n|${name}}{v|${tag != null ? tag : ''}}`;
+              } else {
+                const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
+                const v = yEnc != null ? drow[yEnc] : undefined;
+                if (
+                  v === undefined ||
+                  v === null ||
+                  v === '' ||
+                  (typeof v === 'number' && Number.isNaN(v))
+                ) {
+                  continue;
+                }
+                if (seen.has(name)) continue; // skip dup/area-fill
+                seen.add(name);
+                line = `${dot}{n|${name}}{v|${v}}`;
               }
-            } else if (p?.componentSubType === 'scatter') {
-              const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
-              const tag = Array.isArray(row) ? row[tagCol] : undefined;
-              line = `${marker}{n|${p.seriesName}}{v|${tag ? String(tag) : ''}}`;
-            } else {
-              const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
-              const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
-              if (
-                val === undefined ||
-                val === null ||
-                val === '' ||
-                (typeof val === 'number' && Number.isNaN(val))
-              ) {
-                continue;
-              }
-              if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
-              if (p?.seriesName) seen.add(p.seriesName);
-              line = `${marker}{n|${p?.seriesName ?? ''}}{v|${val}}`;
+              if (!line) continue;
+              if (prevKey !== undefined && key !== prevKey) parts.push(''); // blank line between sets
+              parts.push(line);
+              prevKey = key;
+            } catch {
+              /* skip this series */
             }
-            if (!line) continue;
-            if (prevKey !== undefined && key !== prevKey) parts.push(''); // blank line between sets
-            parts.push(line);
-            prevKey = key;
-          } catch {
-            /* skip this row */
           }
+          // Never return empty — that would hide the box entirely.
+          return parts.length ? parts.join('\n') : ' ';
+        } catch {
+          return ' ';
         }
-        // Never return empty — that would hide the box entirely.
-        return parts.length ? parts.join('\n') : ' ';
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
