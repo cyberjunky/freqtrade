@@ -640,63 +640,102 @@ function initializeChartOptions() {
       // `rich` styles (assigned below), name/value columns, single date header.
       renderMode: 'richText',
       formatter: (params) => {
+        const rows = Array.isArray(params) ? params : params ? [params] : [];
+        let header = '';
         try {
-          const rows = Array.isArray(params) ? params : params ? [params] : [];
+          const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
+          if (h != null && h !== '') header = `{hdr|${h}}`;
+        } catch {
+          /* ignore */
+        }
+
+        // Preferred: list ALL series (every subplot) at the hovered candle.
+        try {
           const di = rows[0]?.dataIndex;
           const allSeries = Array.isArray(options.series) ? (options.series as any[]) : [];
-          if (di == null || !Array.isArray(dataset) || !dataset[di]) return ' ';
-          const drow = dataset[di];
-          const parts: string[] = [];
-          const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
-          if (h != null && h !== '') parts.push(`{hdr|${h}}`);
-          let prevKey: unknown;
-          const seen = new Set<string>();
-          for (const s of allSeries) {
-            try {
-              if (s?.tooltip && s.tooltip.show === false) continue; // area fills
-              const name = s?.name;
-              if (!name) continue;
-              const dot = s?.__dotKey ? `{${s.__dotKey}|●} ` : '';
-              const key = s?.xAxisIndex ?? 0;
-              let line = '';
-              if (name === 'Candles') {
-                if (drow[colOpen] != null) {
-                  line =
-                    `${dot}{n|Candles}` +
-                    `{v|O ${drow[colOpen]} H ${drow[colHigh]} L ${drow[colLow]} C ${drow[colClose]}}`;
+          if (di != null && Array.isArray(dataset) && dataset[di] && allSeries.length) {
+            const drow = dataset[di];
+            const parts: string[] = header ? [header] : [];
+            let prevKey: unknown;
+            const seen = new Set<string>();
+            for (const s of allSeries) {
+              try {
+                if (s?.tooltip && s.tooltip.show === false) continue; // area fills
+                const name = s?.name;
+                if (!name) continue;
+                const dot = s?.__dotKey ? `{${s.__dotKey}|●} ` : '';
+                const key = s?.xAxisIndex ?? 0;
+                let line = '';
+                if (name === 'Candles') {
+                  if (drow[colOpen] != null) {
+                    line =
+                      `${dot}{n|Candles}` +
+                      `{v|O ${drow[colOpen]} H ${drow[colHigh]} L ${drow[colLow]} C ${drow[colClose]}}`;
+                  }
+                } else if (s?.type === 'scatter') {
+                  const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
+                  const v = yEnc != null ? drow[yEnc] : undefined;
+                  if (v == null) continue;
+                  const tagCol = name === 'Exit' ? colExitTag : colEnterTag;
+                  const tag = drow[tagCol];
+                  line = `${dot}{n|${name}}{v|${tag != null ? tag : ''}}`;
+                } else {
+                  const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
+                  const v = yEnc != null ? drow[yEnc] : undefined;
+                  if (v == null || v === '' || (typeof v === 'number' && Number.isNaN(v))) continue;
+                  if (seen.has(name)) continue;
+                  seen.add(name);
+                  line = `${dot}{n|${name}}{v|${v}}`;
                 }
-              } else if (s?.type === 'scatter') {
-                // Entry/Exit signal markers — only when present at this candle.
-                const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
-                const v = yEnc != null ? drow[yEnc] : undefined;
-                if (v == null) continue;
-                const tagCol = name === 'Exit' ? colExitTag : colEnterTag;
-                const tag = drow[tagCol];
-                line = `${dot}{n|${name}}{v|${tag != null ? tag : ''}}`;
-              } else {
-                const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
-                const v = yEnc != null ? drow[yEnc] : undefined;
-                if (
-                  v === undefined ||
-                  v === null ||
-                  v === '' ||
-                  (typeof v === 'number' && Number.isNaN(v))
-                ) {
-                  continue;
-                }
-                if (seen.has(name)) continue; // skip dup/area-fill
-                seen.add(name);
-                line = `${dot}{n|${name}}{v|${v}}`;
+                if (!line) continue;
+                if (prevKey !== undefined && key !== prevKey) parts.push('');
+                parts.push(line);
+                prevKey = key;
+              } catch {
+                /* skip this series */
               }
-              if (!line) continue;
-              if (prevKey !== undefined && key !== prevKey) parts.push(''); // blank line between sets
-              parts.push(line);
-              prevKey = key;
+            }
+            if (parts.length > (header ? 1 : 0)) return parts.join('\n');
+          }
+        } catch {
+          /* fall through to params-based render */
+        }
+
+        // Fallback: render the series ECharts handed us (hovered subplot only).
+        // This path is the proven one — it guarantees the box still appears.
+        try {
+          const parts: string[] = header ? [header] : [];
+          const seen = new Set<string>();
+          for (const p of rows) {
+            try {
+              const row = p?.value;
+              const marker = typeof p?.marker === 'string' ? p.marker : '';
+              if (p?.seriesName === 'Candles') {
+                if (Array.isArray(row) && row[colOpen] != null) {
+                  parts.push(
+                    `${marker}{n|Candles}{v|O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}}`,
+                  );
+                }
+                continue;
+              }
+              if (p?.componentSubType === 'scatter') {
+                const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
+                const tag = Array.isArray(row) ? row[tagCol] : undefined;
+                parts.push(`${marker}{n|${p.seriesName}}{v|${tag ? String(tag) : ''}}`);
+                continue;
+              }
+              const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
+              const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
+              if (val == null || val === '' || (typeof val === 'number' && Number.isNaN(val))) {
+                continue;
+              }
+              if (p?.seriesName && seen.has(p.seriesName)) continue;
+              if (p?.seriesName) seen.add(p.seriesName);
+              parts.push(`${marker}{n|${p?.seriesName ?? ''}}{v|${val}}`);
             } catch {
-              /* skip this series */
+              /* skip row */
             }
           }
-          // Never return empty — that would hide the box entirely.
           return parts.length ? parts.join('\n') : ' ';
         } catch {
           return ' ';
