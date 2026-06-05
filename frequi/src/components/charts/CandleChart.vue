@@ -645,7 +645,7 @@ function initializeChartOptions() {
         let prevKey: unknown;
         const pushLine = (line: string, key: unknown) => {
           if (prevKey !== undefined && key !== prevKey) {
-            lines.push('<div style="border-top:1px solid #000;margin:3px 0;"></div>');
+            lines.push('<div style="height:8px;"></div>'); // blank gap between sets
           }
           lines.push(line);
           prevKey = key;
@@ -696,11 +696,10 @@ function initializeChartOptions() {
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
-      // Compact font + no max-height/scroll so every indicator line stays visible.
-      extraCssText: 'max-height:none;overflow:visible;padding:5px 9px;',
+      // No max-height/scroll so every indicator line stays visible.
+      extraCssText: 'max-height:none;overflow:visible;',
       textStyle: {
         color: '#fff',
-        fontSize: 11,
       },
       axisPointer: {
         type: 'cross',
