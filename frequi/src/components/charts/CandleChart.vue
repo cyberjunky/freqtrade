@@ -622,15 +622,20 @@ function initializeChartOptions() {
       // tokens here on purpose — they require rich-style defs and froze hovering.
       renderMode: 'richText',
       formatter: (params) => {
+        const rows = Array.isArray(params) ? params : params ? [params] : [];
+        const lines: string[] = [];
+        // Header: single date/time for the whole crosshair.
         try {
-          const rows = (Array.isArray(params) ? params : [params]) as any[];
-          if (!rows.length) return '';
-          const header = rows[0].axisValueLabel ?? String(rows[0].axisValue ?? '');
-          const lines: string[] = [header];
-          const seen = new Set<string>();
-          for (const p of rows) {
-            const row = p.value;
-            if (p.seriesName === 'Candles') {
+          const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
+          if (h != null && h !== '') lines.push(String(h));
+        } catch {
+          /* ignore */
+        }
+        const seen = new Set<string>();
+        for (const p of rows) {
+          try {
+            const row = p?.value;
+            if (p?.seriesName === 'Candles') {
               if (Array.isArray(row) && row[colOpen] != null) {
                 lines.push(
                   `Candles  O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
@@ -638,14 +643,13 @@ function initializeChartOptions() {
               }
               continue;
             }
-            // Entry/Exit scatter markers: show their tag instead of the raw close.
-            if (p.componentSubType === 'scatter') {
+            if (p?.componentSubType === 'scatter') {
               const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
               const tag = Array.isArray(row) ? row[tagCol] : undefined;
               lines.push(`${p.seriesName}${tag ? ` (${tag})` : ''}`);
               continue;
             }
-            const yi = Array.isArray(p.encode?.y) ? p.encode.y[0] : undefined;
+            const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
             const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
             if (
               val === undefined ||
@@ -655,14 +659,15 @@ function initializeChartOptions() {
             ) {
               continue;
             }
-            if (seen.has(p.seriesName)) continue; // skip area-fill duplicates
-            seen.add(p.seriesName);
-            lines.push(`${p.seriesName}: ${val}`);
+            if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
+            if (p?.seriesName) seen.add(p.seriesName);
+            lines.push(`${p?.seriesName ?? ''}: ${val}`);
+          } catch {
+            /* skip this row */
           }
-          return lines.join('\n');
-        } catch {
-          return '';
         }
+        // Never return empty — that would hide the box entirely.
+        return lines.length ? lines.join('\n') : ' ';
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
