@@ -616,22 +616,24 @@ function initializeChartOptions() {
     tooltip: {
       show: true,
       trigger: 'axis',
-      // Single date/time header for the whole crosshair instead of one per
-      // subplot — frees vertical space so more indicators are visible.
+      // richText renders on the canvas (never clipped by the container). Custom
+      // formatter prints ONE date/time header for the whole crosshair instead of
+      // one per subplot, freeing vertical space for more indicators. No marker
+      // tokens here on purpose — they require rich-style defs and froze hovering.
+      renderMode: 'richText',
       formatter: (params) => {
         try {
           const rows = (Array.isArray(params) ? params : [params]) as any[];
           if (!rows.length) return '';
           const header = rows[0].axisValueLabel ?? String(rows[0].axisValue ?? '');
-          const lines: string[] = [];
+          const lines: string[] = [header];
           const seen = new Set<string>();
           for (const p of rows) {
             const row = p.value;
-            const marker = typeof p.marker === 'string' ? p.marker : '';
             if (p.seriesName === 'Candles') {
               if (Array.isArray(row) && row[colOpen] != null) {
                 lines.push(
-                  `${marker}Candles&nbsp; O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
+                  `Candles  O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
                 );
               }
               continue;
@@ -640,7 +642,7 @@ function initializeChartOptions() {
             if (p.componentSubType === 'scatter') {
               const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
               const tag = Array.isArray(row) ? row[tagCol] : undefined;
-              lines.push(`${marker}${p.seriesName}${tag ? ` (${tag})` : ''}`);
+              lines.push(`${p.seriesName}${tag ? ` (${tag})` : ''}`);
               continue;
             }
             const yi = Array.isArray(p.encode?.y) ? p.encode.y[0] : undefined;
@@ -655,9 +657,9 @@ function initializeChartOptions() {
             }
             if (seen.has(p.seriesName)) continue; // skip area-fill duplicates
             seen.add(p.seriesName);
-            lines.push(`${marker}${p.seriesName}: ${val}`);
+            lines.push(`${p.seriesName}: ${val}`);
           }
-          return `${header}<br/>${lines.join('<br/>')}`;
+          return lines.join('\n');
         } catch {
           return '';
         }
