@@ -640,18 +640,30 @@ function initializeChartOptions() {
         } catch {
           /* ignore */
         }
+        // Push a line, inserting a divider whenever we cross into a new subplot
+        // (identified by the series' x-axis index).
+        let prevKey: unknown;
+        const pushLine = (line: string, key: unknown) => {
+          if (prevKey !== undefined && key !== prevKey) {
+            lines.push('<div style="border-top:1px solid #000;margin:3px 0;"></div>');
+          }
+          lines.push(line);
+          prevKey = key;
+        };
         const seen = new Set<string>();
         for (const p of rows) {
           try {
             const row = p?.value;
             const marker = typeof p?.marker === 'string' ? p.marker : '';
+            const key = p?.axisIndex ?? 0;
             if (p?.seriesName === 'Candles') {
               if (Array.isArray(row) && row[colOpen] != null) {
-                lines.push(
+                pushLine(
                   row2col(
                     `${marker}Candles`,
                     `O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
                   ),
+                  key,
                 );
               }
               continue;
@@ -659,7 +671,7 @@ function initializeChartOptions() {
             if (p?.componentSubType === 'scatter') {
               const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
               const tag = Array.isArray(row) ? row[tagCol] : undefined;
-              lines.push(row2col(`${marker}${p.seriesName}`, tag ? String(tag) : ''));
+              pushLine(row2col(`${marker}${p.seriesName}`, tag ? String(tag) : ''), key);
               continue;
             }
             const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
@@ -674,7 +686,7 @@ function initializeChartOptions() {
             }
             if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
             if (p?.seriesName) seen.add(p.seriesName);
-            lines.push(row2col(`${marker}${p?.seriesName ?? ''}`, String(val)));
+            pushLine(row2col(`${marker}${p?.seriesName ?? ''}`, String(val)), key);
           } catch {
             /* skip this row */
           }
@@ -684,8 +696,11 @@ function initializeChartOptions() {
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
+      // Compact font + no max-height/scroll so every indicator line stays visible.
+      extraCssText: 'max-height:none;overflow:visible;padding:5px 9px;',
       textStyle: {
         color: '#fff',
+        fontSize: 11,
       },
       axisPointer: {
         type: 'cross',
@@ -698,8 +713,9 @@ function initializeChartOptions() {
       // positioning copied from https://echarts.apache.org/en/option.html#tooltip.position
       position(pos, params, dom, rect, size) {
         // tooltip will be fixed on the right if mouse hovering on the left,
-        // and on the left if hovering on the right.
-        const obj = { top: 60 };
+        // and on the left if hovering on the right. Pinned near the top so the
+        // full (possibly long) indicator list has room without scrolling.
+        const obj = { top: 8 };
         const mouseIsLeft = pos[0] < size.viewSize[0] / 2;
         obj[['left', 'right'][+mouseIsLeft]!] = mouseIsLeft ? 5 : 60;
         return obj;
