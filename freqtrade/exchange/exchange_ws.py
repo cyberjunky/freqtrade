@@ -201,6 +201,11 @@ class ExchangeWS:
             # Network errors are common on shutdown so we can ignore them.
             # It's a network error - which most likely means that the connection is already closed.
             logger.debug("Network error during unwatch for %s, %s: %s", pair, timeframe, e)
+        except ccxt.ExchangeError as e:
+            # e.g. Hyperliquid "Already unsubscribed": the stream is already gone, which
+            # is exactly the outcome we wanted. Non-critical during teardown/refresh —
+            # log a single debug line instead of an ERROR + traceback per pair.
+            logger.debug("Exchange error during unwatch for %s, %s: %s", pair, timeframe, e)
         except Exception:
             logger.exception(f"Exception in _unwatch_ohlcv for {pair}, {timeframe},")
 
@@ -248,6 +253,14 @@ class ExchangeWS:
                 )
         except ccxt.ExchangeClosedByUser:
             logger.debug("Exchange connection closed by user")
+        except ccxt.NetworkError as e:
+            # Transient connectivity blip (RequestTimeout, dropped socket, ping-pong
+            # keepalive miss — common when the internet drops). The scheduler re-adds
+            # this watch on the next cycle, so log a single clean line, no traceback.
+            logger.warning(
+                f"Websocket watch for {pair}, {timeframe} dropped "
+                f"({e.__class__.__name__}); will reconnect."
+            )
         except ccxt.BaseError:
             logger.exception(f"Exception in continuously_async_watch_ohlcv for {pair}, {timeframe}")
         finally:
