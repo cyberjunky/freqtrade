@@ -616,86 +616,74 @@ function initializeChartOptions() {
     tooltip: {
       show: true,
       trigger: 'axis',
-      // HTML render mode: p.marker gives a colored dot matching each series so
-      // values can be matched to chart lines. One date/time header for the whole
-      // crosshair (not per subplot). Rendered inside the chart container (no
-      // appendToBody) so it grows to full content height without scrolling.
-      renderMode: 'html',
+      // richText renders on the CANVAS, so the box is never clipped or scrolled
+      // by a DOM container — that DOM scroll is exactly what HTML mode caused.
+      // Colored dots come from p.marker; name/value columns via `rich` styles;
+      // one date/time header for the whole crosshair (not per subplot).
+      renderMode: 'richText',
       formatter: (params) => {
         const rows = Array.isArray(params) ? params : params ? [params] : [];
-        // One flex row: name (with colored dot) on the left, value right-aligned.
-        const row2col = (left: string, right: string) =>
-          `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.35;">` +
-          `<span>${left}</span><span style="font-weight:600;">${right}</span></div>`;
-        const lines: string[] = [];
+        const parts: string[] = [];
         // Header: single date/time for the whole crosshair.
         try {
           const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
-          if (h != null && h !== '')
-            lines.push(`<div style="font-weight:bold;margin-bottom:3px;">${h}</div>`);
+          if (h != null && h !== '') parts.push(`{hdr|${h}}`);
         } catch {
           /* ignore */
         }
-        // Push a line, inserting a divider whenever we cross into a new subplot
-        // (identified by the series' x-axis index).
         let prevKey: unknown;
-        const pushLine = (line: string, key: unknown) => {
-          if (prevKey !== undefined && key !== prevKey) {
-            lines.push('<div style="height:8px;"></div>'); // blank gap between sets
-          }
-          lines.push(line);
-          prevKey = key;
-        };
         const seen = new Set<string>();
         for (const p of rows) {
           try {
             const row = p?.value;
             const marker = typeof p?.marker === 'string' ? p.marker : '';
             const key = p?.axisIndex ?? 0;
+            let line = '';
             if (p?.seriesName === 'Candles') {
               if (Array.isArray(row) && row[colOpen] != null) {
-                pushLine(
-                  row2col(
-                    `${marker}Candles`,
-                    `O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
-                  ),
-                  key,
-                );
+                line =
+                  `${marker}{n|Candles}` +
+                  `{v|O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}}`;
               }
-              continue;
-            }
-            if (p?.componentSubType === 'scatter') {
+            } else if (p?.componentSubType === 'scatter') {
               const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
               const tag = Array.isArray(row) ? row[tagCol] : undefined;
-              pushLine(row2col(`${marker}${p.seriesName}`, tag ? String(tag) : ''), key);
-              continue;
+              line = `${marker}{n|${p.seriesName}}{v|${tag ? String(tag) : ''}}`;
+            } else {
+              const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
+              const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
+              if (
+                val === undefined ||
+                val === null ||
+                val === '' ||
+                (typeof val === 'number' && Number.isNaN(val))
+              ) {
+                continue;
+              }
+              if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
+              if (p?.seriesName) seen.add(p.seriesName);
+              line = `${marker}{n|${p?.seriesName ?? ''}}{v|${val}}`;
             }
-            const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
-            const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
-            if (
-              val === undefined ||
-              val === null ||
-              val === '' ||
-              (typeof val === 'number' && Number.isNaN(val))
-            ) {
-              continue;
-            }
-            if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
-            if (p?.seriesName) seen.add(p.seriesName);
-            pushLine(row2col(`${marker}${p?.seriesName ?? ''}`, String(val)), key);
+            if (!line) continue;
+            if (prevKey !== undefined && key !== prevKey) parts.push(''); // blank line between sets
+            parts.push(line);
+            prevKey = key;
           } catch {
             /* skip this row */
           }
         }
         // Never return empty — that would hide the box entirely.
-        return lines.length ? lines.join('') : ' ';
+        return parts.length ? parts.join('\n') : ' ';
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
-      // No max-height/scroll so every indicator line stays visible.
-      extraCssText: 'max-height:none !important;overflow:visible !important;',
       textStyle: {
         color: '#fff',
+        rich: {
+          hdr: { fontWeight: 'bold', padding: [0, 0, 4, 0] },
+          n: { width: 130, align: 'left' }, // name column (values align after it)
+          v: { align: 'left' },
+        },
       },
       axisPointer: {
         type: 'cross',
