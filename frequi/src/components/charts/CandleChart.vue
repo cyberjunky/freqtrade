@@ -620,14 +620,18 @@ function initializeChartOptions() {
       // formatter prints ONE date/time header for the whole crosshair instead of
       // one per subplot, freeing vertical space for more indicators. No marker
       // tokens here on purpose — they require rich-style defs and froze hovering.
-      renderMode: 'richText',
+      // HTML render mode: p.marker gives a colored dot matching each series so
+      // values can be matched to chart lines, and the box auto-grows to fit all
+      // lines. One date/time header for the whole crosshair (not per subplot).
+      renderMode: 'html',
+      appendToBody: true,
       formatter: (params) => {
         const rows = Array.isArray(params) ? params : params ? [params] : [];
         const lines: string[] = [];
         // Header: single date/time for the whole crosshair.
         try {
           const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
-          if (h != null && h !== '') lines.push(String(h));
+          if (h != null && h !== '') lines.push(`<b>${h}</b>`);
         } catch {
           /* ignore */
         }
@@ -635,10 +639,11 @@ function initializeChartOptions() {
         for (const p of rows) {
           try {
             const row = p?.value;
+            const marker = typeof p?.marker === 'string' ? p.marker : '';
             if (p?.seriesName === 'Candles') {
               if (Array.isArray(row) && row[colOpen] != null) {
                 lines.push(
-                  `Candles  O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
+                  `${marker}Candles&nbsp; O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
                 );
               }
               continue;
@@ -646,7 +651,7 @@ function initializeChartOptions() {
             if (p?.componentSubType === 'scatter') {
               const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
               const tag = Array.isArray(row) ? row[tagCol] : undefined;
-              lines.push(`${p.seriesName}${tag ? ` (${tag})` : ''}`);
+              lines.push(`${marker}${p.seriesName}${tag ? ` (${tag})` : ''}`);
               continue;
             }
             const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
@@ -661,13 +666,13 @@ function initializeChartOptions() {
             }
             if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
             if (p?.seriesName) seen.add(p.seriesName);
-            lines.push(`${p?.seriesName ?? ''}: ${val}`);
+            lines.push(`${marker}${p?.seriesName ?? ''}: ${val}`);
           } catch {
             /* skip this row */
           }
         }
         // Never return empty — that would hide the box entirely.
-        return lines.length ? lines.join('\n') : ' ';
+        return lines.length ? lines.join('<br/>') : ' ';
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
