@@ -616,46 +616,51 @@ function initializeChartOptions() {
     tooltip: {
       show: true,
       trigger: 'axis',
-      renderMode: 'richText',
       // Single date/time header for the whole crosshair instead of one per
       // subplot — frees vertical space so more indicators are visible.
       formatter: (params) => {
-        const rows = (Array.isArray(params) ? params : [params]) as any[];
-        if (!rows.length) return '';
-        const lines: string[] = [rows[0].axisValueLabel ?? String(rows[0].axisValue ?? '')];
-        const seen = new Set<string>();
-        for (const p of rows) {
-          const row = p.value as any[];
-          if (p.seriesName === 'Candles') {
-            if (Array.isArray(row) && row[colOpen] != null) {
-              lines.push(
-                `${p.marker}Candles  O ${row[colOpen]}  H ${row[colHigh]}  L ${row[colLow]}  C ${row[colClose]}`,
-              );
+        try {
+          const rows = (Array.isArray(params) ? params : [params]) as any[];
+          if (!rows.length) return '';
+          const header = rows[0].axisValueLabel ?? String(rows[0].axisValue ?? '');
+          const lines: string[] = [];
+          const seen = new Set<string>();
+          for (const p of rows) {
+            const row = p.value;
+            const marker = typeof p.marker === 'string' ? p.marker : '';
+            if (p.seriesName === 'Candles') {
+              if (Array.isArray(row) && row[colOpen] != null) {
+                lines.push(
+                  `${marker}Candles&nbsp; O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
+                );
+              }
+              continue;
             }
-            continue;
+            // Entry/Exit scatter markers: show their tag instead of the raw close.
+            if (p.componentSubType === 'scatter') {
+              const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
+              const tag = Array.isArray(row) ? row[tagCol] : undefined;
+              lines.push(`${marker}${p.seriesName}${tag ? ` (${tag})` : ''}`);
+              continue;
+            }
+            const yi = Array.isArray(p.encode?.y) ? p.encode.y[0] : undefined;
+            const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
+            if (
+              val === undefined ||
+              val === null ||
+              val === '' ||
+              (typeof val === 'number' && Number.isNaN(val))
+            ) {
+              continue;
+            }
+            if (seen.has(p.seriesName)) continue; // skip area-fill duplicates
+            seen.add(p.seriesName);
+            lines.push(`${marker}${p.seriesName}: ${val}`);
           }
-          // Entry/Exit scatter markers: show their tag instead of the raw close.
-          if (p.componentSubType === 'scatter') {
-            const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
-            const tag = Array.isArray(row) ? row[tagCol] : undefined;
-            lines.push(`${p.marker}${p.seriesName}${tag ? ` (${tag})` : ''}`);
-            continue;
-          }
-          const yi = Array.isArray(p.encode?.y) ? p.encode.y[0] : undefined;
-          const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
-          if (
-            val === undefined ||
-            val === null ||
-            val === '' ||
-            (typeof val === 'number' && Number.isNaN(val))
-          ) {
-            continue;
-          }
-          if (seen.has(p.seriesName)) continue; // skip area-fill duplicates
-          seen.add(p.seriesName);
-          lines.push(`${p.marker}${p.seriesName}: ${val}`);
+          return `${header}<br/>${lines.join('<br/>')}`;
+        } catch {
+          return '';
         }
-        return lines.join('\n');
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
