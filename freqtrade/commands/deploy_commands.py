@@ -111,10 +111,18 @@ def start_install_ui(args: dict[str, Any]) -> None:
         clean_ui_subdir,
         download_and_install_ui,
         get_ui_download_url,
+        install_ui_from_local,
         read_ui_version,
     )
 
     dest_folder = Path(__file__).parents[1] / "rpc/api_server/ui/installed/"
+
+    # Install the vendored local build instead of downloading a release.
+    if args.get("ui_local"):
+        clean_ui_subdir(dest_folder)
+        install_ui_from_local(dest_folder)
+        return
+
     # First make sure the assets are removed.
     dl_url, latest_version = get_ui_download_url(
         args.get("ui_version"), args.get("ui_prerelease", False)

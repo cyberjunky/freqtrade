@@ -1,0 +1,48 @@
+export enum TimeSummaryOptions {
+  daily = 'daily',
+  weekly = 'weekly',
+  monthly = 'monthly',
+}
+
+export enum TimeSummaryCols {
+  abs_profit = 'abs_profit',
+  rel_profit = 'rel_profit',
+}
+
+export interface TimeSummaryPayload {
+  timescale?: number;
+}
+
+export interface TimeSummaryRecord {
+  /** Date in the format yyyy-mm-dd */
+  [key: string]: string | number;
+  date: string;
+  abs_profit: number;
+  /** added in  2.16*/
+  rel_profit: number;
+  starting_balance: number;
+  fiat_value: number;
+  trade_count: number;
+}
+
+export interface TimeSummaryReturnValue {
+  data: TimeSummaryRecord[];
+  fiat_display_currency: string;
+  stake_currency: string;
+}
+
+export interface WalletHistory {
+  columns: string[];
+  length: number;
+  data: (number | string)[][];
+  /** start date of the effectively captured data
+   * Only applies to live modes with an older database
+   */
+  capture_start_ts?: number;
+  /** assigned in frontend */
+  botName?: string;
+}
+
+export interface WalletHistoryPerBot {
+  [botId: string]: WalletHistory;
+}

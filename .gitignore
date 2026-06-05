@@ -36,6 +36,9 @@ env/
 build/
 develop-eggs/
 dist/
+# Keep the vendored FreqUI build (installed via `freqtrade install-ui --local`)
+!frequi/dist/
+!frequi/dist/**
 downloads/
 eggs/
 .eggs/

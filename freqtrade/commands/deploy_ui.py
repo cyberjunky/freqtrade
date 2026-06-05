@@ -56,6 +56,46 @@ def download_and_install_ui(dest_folder: Path, dl_url: str, version: str):
         f.write(version)
 
 
+def install_ui_from_local(dest_folder: Path) -> None:
+    """
+    Install the vendored FreqUI build shipped in this repo (frequi/dist) into the
+    served UI folder, instead of downloading a release from GitHub. Lets a fork
+    ship a customized UI without needing Node/npm on the deploy host.
+    """
+    import shutil
+
+    # freqtrade/commands/deploy_ui.py -> repo root is parents[2]
+    source_folder = Path(__file__).parents[2] / "frequi" / "dist"
+    if not source_folder.is_dir():
+        raise ValueError(
+            f"Local FreqUI build not found at {source_folder}. "
+            "Build it first with `npm ci && npm run build` in the frequi/ directory."
+        )
+
+    version = "local"
+    pkg = Path(__file__).parents[2] / "frequi" / "package.json"
+    if pkg.is_file():
+        import json
+
+        try:
+            version = f"local-{json.loads(pkg.read_text())['version']}"
+        except (KeyError, ValueError):
+            pass
+
+    logger.info(f"Installing local FreqUI build from {source_folder}")
+    dest_folder.mkdir(parents=True, exist_ok=True)
+    for src in source_folder.glob("**/*"):
+        rel = src.relative_to(source_folder)
+        target = dest_folder / rel
+        if src.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
+    with (dest_folder / ".uiversion").open("w") as f:
+        f.write(version)
+
+
 def get_ui_download_url(version: str | None, prerelease: bool) -> tuple[str, str]:
     base_url = "https://api.github.com/repos/freqtrade/frequi/"
     # Get base UI Repo path
