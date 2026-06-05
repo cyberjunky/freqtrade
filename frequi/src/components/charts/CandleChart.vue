@@ -616,15 +616,11 @@ function initializeChartOptions() {
     tooltip: {
       show: true,
       trigger: 'axis',
-      // richText renders on the canvas (never clipped by the container). Custom
-      // formatter prints ONE date/time header for the whole crosshair instead of
-      // one per subplot, freeing vertical space for more indicators. No marker
-      // tokens here on purpose — they require rich-style defs and froze hovering.
       // HTML render mode: p.marker gives a colored dot matching each series so
-      // values can be matched to chart lines, and the box auto-grows to fit all
-      // lines. One date/time header for the whole crosshair (not per subplot).
+      // values can be matched to chart lines. One date/time header for the whole
+      // crosshair (not per subplot). Rendered inside the chart container (no
+      // appendToBody) so it grows to full content height without scrolling.
       renderMode: 'html',
-      appendToBody: true,
       formatter: (params) => {
         const rows = Array.isArray(params) ? params : params ? [params] : [];
         // One flex row: name (with colored dot) on the left, value right-aligned.
@@ -697,7 +693,7 @@ function initializeChartOptions() {
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
       // No max-height/scroll so every indicator line stays visible.
-      extraCssText: 'max-height:none;overflow:visible;',
+      extraCssText: 'max-height:none !important;overflow:visible !important;',
       textStyle: {
         color: '#fff',
       },
