@@ -627,11 +627,16 @@ function initializeChartOptions() {
       appendToBody: true,
       formatter: (params) => {
         const rows = Array.isArray(params) ? params : params ? [params] : [];
+        // One flex row: name (with colored dot) on the left, value right-aligned.
+        const row2col = (left: string, right: string) =>
+          `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.35;">` +
+          `<span>${left}</span><span style="font-weight:600;">${right}</span></div>`;
         const lines: string[] = [];
         // Header: single date/time for the whole crosshair.
         try {
           const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
-          if (h != null && h !== '') lines.push(`<b>${h}</b>`);
+          if (h != null && h !== '')
+            lines.push(`<div style="font-weight:bold;margin-bottom:3px;">${h}</div>`);
         } catch {
           /* ignore */
         }
@@ -643,7 +648,10 @@ function initializeChartOptions() {
             if (p?.seriesName === 'Candles') {
               if (Array.isArray(row) && row[colOpen] != null) {
                 lines.push(
-                  `${marker}Candles&nbsp; O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
+                  row2col(
+                    `${marker}Candles`,
+                    `O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}`,
+                  ),
                 );
               }
               continue;
@@ -651,7 +659,7 @@ function initializeChartOptions() {
             if (p?.componentSubType === 'scatter') {
               const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
               const tag = Array.isArray(row) ? row[tagCol] : undefined;
-              lines.push(`${marker}${p.seriesName}${tag ? ` (${tag})` : ''}`);
+              lines.push(row2col(`${marker}${p.seriesName}`, tag ? String(tag) : ''));
               continue;
             }
             const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
@@ -666,13 +674,13 @@ function initializeChartOptions() {
             }
             if (p?.seriesName && seen.has(p.seriesName)) continue; // skip dup/area-fill
             if (p?.seriesName) seen.add(p.seriesName);
-            lines.push(`${marker}${p?.seriesName ?? ''}: ${val}`);
+            lines.push(row2col(`${marker}${p?.seriesName ?? ''}`, String(val)));
           } catch {
             /* skip this row */
           }
         }
         // Never return empty — that would hide the box entirely.
-        return lines.length ? lines.join('<br/>') : ' ';
+        return lines.length ? lines.join('') : ' ';
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
