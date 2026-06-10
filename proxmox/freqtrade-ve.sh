@@ -130,12 +130,21 @@ export DEBIAN_FRONTEND=noninteractive
 REPO_URL="$REPO_URL"; BRANCH="$BRANCH"; CT_DIR="$CT_DIR"
 ENABLE_SSH="$ENABLE_SSH"; ROOT_PW="${ROOT_PW:-}"
 
-echo "[ct] apt deps..."
+echo "[ct] full upgrade (latest security patches)..."
 apt-get update -qq
+apt-get -y -qq dist-upgrade >/dev/null
+
+echo "[ct] apt deps..."
 apt-get install -y -qq git curl ca-certificates \\
   python3 python3-venv python3-dev \\
   build-essential libssl-dev libffi-dev pkg-config cmake gcc \\
   sqlite3 libgomp1 libatlas3-base libgfortran5 >/dev/null
+
+echo "[ct] enable automatic security updates..."
+apt-get install -y -qq unattended-upgrades >/dev/null
+printf 'APT::Periodic::Update-Package-Lists "1";\\nAPT::Periodic::Unattended-Upgrade "1";\\n' \\
+  >/etc/apt/apt.conf.d/20auto-upgrades
+systemctl enable --now unattended-upgrades >/dev/null 2>&1 || true
 
 echo "[ct] clone \$REPO_URL (\$BRANCH)..."
 # /opt/freqtrade already exists (user_data is bind-mounted under it), so clone
