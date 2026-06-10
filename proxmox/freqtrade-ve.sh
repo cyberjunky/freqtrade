@@ -9,15 +9,18 @@
 #
 # Choices:
 #   - Source repo:  your fork (cyberjunky/improvements, blofin) OR stock (freqtrade/develop)
-#   - user_data:    bind-mounted from the PVE host so it survives CT rebuild/destroy
+#   - Storage:      pick which pool holds the CT disk (shows usage)
+#   - user_data:    kept INSIDE the container (on its disk), persisted via a
+#                   scheduled Proxmox vzdump backup job of the whole CT
 #   - SSH login:    a sudo user (recommended) or root; key generated + displayed
 #   - venv:         freqtrade installs into a .venv in the run user's home dir,
 #                   and the bot runs as that (non-root) user.
 #
 # Non-interactive overrides (export before running to skip prompts):
 #   CTID CT_HOSTNAME DISK CORES RAM SWAP BRIDGE STORAGE TEMPLATE_STORAGE
-#   REPO_CHOICE(fork|dev) ENABLE_SSH(yes|no) DATA_ROOT
-#   SSH_USER (sudo login user; "" = root-only) SSH_USER_PW ROOT_PW
+#   REPO_CHOICE(fork|dev) ENABLE_SSH(yes|no) SSH_USER (""=root-only) SSH_USER_PW ROOT_PW
+#   ENABLE_BACKUP(yes|no) BACKUP_STORAGE BACKUP_SCHEDULE(e.g. "03:00") BACKUP_KEEP(int)
+#   KEY_DIR (host dir to save the generated private key)
 #
 set -euo pipefail
 
@@ -25,7 +28,7 @@ set -euo pipefail
 # NB: do NOT name this HOSTNAME — the PVE host shell exports HOSTNAME=pve,
 # which would override the default and name every CT "pve".
 CT_HOSTNAME="${CT_HOSTNAME:-freqtrade-prod}"
-DISK="${DISK:-16}"                # GB
+DISK="${DISK:-20}"                # GB (data lives inside the CT, so give it room)
 CORES="${CORES:-4}"
 RAM="${RAM:-4096}"                # MB
 SWAP="${SWAP:-1024}"              # MB
@@ -34,10 +37,15 @@ STORAGE="${STORAGE:-}"                     # rootfs storage (prompted; falls bac
 # template storage: auto-pick the first storage that supports CT templates (vztmpl)
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pvesm status -content vztmpl 2>/dev/null | awk 'NR>1{print $1; exit}')}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # fallback
-DATA_ROOT="${DATA_ROOT:-/opt/ft-data}"    # host dir holding each CT's user_data
-CT_DIR="/opt/freqtrade"                   # freqtrade source dir inside the container
+CT_DIR="/opt/freqtrade"                   # freqtrade dir inside the container (code + user_data)
+KEY_DIR="${KEY_DIR:-/root/freqtrade-ct-keys}"  # host dir to stash the generated SSH key
 TEMPLATE_NAME="debian-13-standard"        # Debian 13 trixie, Python 3.13 (freqtrade needs >=3.11)
-UNPRIV_ROOT_UID=100000                    # uid that CT-root maps to on the host
+
+# backups: schedule a vzdump of the whole CT so in-container data is recoverable
+ENABLE_BACKUP="${ENABLE_BACKUP:-yes}"
+BACKUP_STORAGE="${BACKUP_STORAGE:-}"      # backup-capable storage (prompted; auto if blank)
+BACKUP_SCHEDULE="${BACKUP_SCHEDULE:-03:00}"
+BACKUP_KEEP="${BACKUP_KEEP:-7}"
 
 FORK_URL="https://github.com/cyberjunky/freqtrade.git";  FORK_BRANCH="improvements"
 DEV_URL="https://github.com/freqtrade/freqtrade.git";    DEV_BRANCH="develop"
@@ -93,6 +101,22 @@ if [ -t 0 ] && command -v whiptail >/dev/null; then
   else
     ENABLE_SSH="no"
   fi
+
+  # backups — schedule a vzdump of the whole CT (so in-container data survives)
+  if whiptail --title "Backups" --yesno \
+       "Schedule a daily backup of this CT?\n(vzdump of the whole container — data + config)" 10 60; then
+    ENABLE_BACKUP="yes"
+    _bk_items=()
+    while read -r _n _t _u; do _bk_items+=("$_n" "$_t  (${_u} used)"); done \
+      < <(pvesm status -content backup 2>/dev/null | awk 'NR>1{print $1, $2, $7}')
+    if [ "${#_bk_items[@]}" -ge 2 ]; then
+      BACKUP_STORAGE="${BACKUP_STORAGE:-$(whiptail --title "backup storage" --menu \
+        "Where should backups be stored?" 16 64 6 \
+        "${_bk_items[@]}" 3>&1 1>&2 2>&3)}" || die "cancelled"
+    fi
+  else
+    ENABLE_BACKUP="no"
+  fi
 else
   REPO_CHOICE="${REPO_CHOICE:-fork}"
 fi
@@ -109,6 +133,11 @@ STORAGE="${STORAGE:-local-lvm}"    # fallback if not picked / non-interactive
 SSH_USER="${SSH_USER-ft}"
 SSH_USER_PW="${SSH_USER_PW:-}"
 ROOT_PW="${ROOT_PW:-}"
+ENABLE_BACKUP="${ENABLE_BACKUP:-yes}"
+# auto-pick a backup-capable storage if one wasn't chosen
+if [ "$ENABLE_BACKUP" = "yes" ] && [ -z "$BACKUP_STORAGE" ]; then
+  BACKUP_STORAGE="$(pvesm status -content backup 2>/dev/null | awk 'NR>1{print $1; exit}')"
+fi
 
 # run user + venv location (venv lives in the run user's home dir)
 if [ -n "$SSH_USER" ]; then RUN_USER="$SSH_USER"; VENV="/home/$SSH_USER/.venv"
@@ -130,25 +159,15 @@ if ! pveam list "$TEMPLATE_STORAGE" 2>/dev/null | grep -q "$TEMPLATE_FILE"; then
 fi
 TEMPLATE_REF="${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE_FILE}"
 
-# ---- host data dir (bind mount target) ------------------------------------
-HOST_DATA="${DATA_ROOT%/}/${CTID}"
-msg "Preparing host data dir $HOST_DATA (survives CT rebuild)..."
-mkdir -p "$HOST_DATA"
-# unprivileged CT: CT-root (uid 0) maps to host uid 100000 — own the bind dir to
-# it so the mount works; the installer re-chowns it to the run user afterwards.
-chown -R "${UNPRIV_ROOT_UID}:${UNPRIV_ROOT_UID}" "$HOST_DATA"
-
 # ---- create the container -------------------------------------------------
-msg "Creating LXC $CTID ($CT_HOSTNAME)..."
+# Data lives INSIDE the CT (no bind-mount); it's persisted by the backup job below.
+msg "Creating LXC $CTID ($CT_HOSTNAME) on $STORAGE (${DISK}G)..."
 pct create "$CTID" "$TEMPLATE_REF" \
   --hostname "$CT_HOSTNAME" \
   --cores "$CORES" --memory "$RAM" --swap "$SWAP" \
   --rootfs "${STORAGE}:${DISK}" \
   --net0 "name=eth0,bridge=${BRIDGE},ip=dhcp" \
   --unprivileged 1 --features nesting=1 --onboot 1
-
-# bind-mount host user_data into the CT
-pct set "$CTID" -mp0 "${HOST_DATA},mp=${CT_DIR}/user_data"
 
 msg "Starting CT $CTID..."
 pct start "$CTID"
@@ -217,7 +236,7 @@ fi
 run() { if [ "$RUN_USER" = root ]; then bash -lc "$1"; else runuser -u "$RUN_USER" -- bash -lc "$1"; fi; }
 
 echo "[ct] clone $REPO_URL ($BRANCH) -> $CT_DIR ..."
-# user_data is bind-mounted under $CT_DIR, so clone elsewhere then copy in.
+# clone to a temp dir then copy in (keeps $CT_DIR setup simple).
 rm -rf /tmp/ftsrc
 git clone --depth 1 -b "$BRANCH" "$REPO_URL" /tmp/ftsrc
 mkdir -p "$CT_DIR"
@@ -299,6 +318,25 @@ pct push "$CTID" "$INSTALLER" /root/ft-install.sh
 pct exec "$CTID" -- bash /root/ft-install.sh
 rm -f "$INSTALLER"
 
+# ---- scheduled backup (persists the in-container data) --------------------
+BACKUP_INFO="(disabled)"
+if [ "$ENABLE_BACKUP" = "yes" ] && [ -n "$BACKUP_STORAGE" ]; then
+  msg "Creating daily backup job: $BACKUP_STORAGE @ $BACKUP_SCHEDULE, keep $BACKUP_KEEP..."
+  if pvesh create /cluster/backup \
+       --vmid "$CTID" --storage "$BACKUP_STORAGE" --schedule "$BACKUP_SCHEDULE" \
+       --mode snapshot --compress zstd --prune-backups "keep-last=$BACKUP_KEEP" \
+       --enabled 1 --comment "freqtrade CT $CTID" >/dev/null 2>&1; then
+    BACKUP_INFO="$BACKUP_STORAGE daily @ $BACKUP_SCHEDULE (keep $BACKUP_KEEP)"
+  else
+    warn "Backup job creation failed (storage '$BACKUP_STORAGE' backup-capable? snapshot supported?)."
+    warn "Set one up later: Datacenter > Backup > Add, or: pvesh create /cluster/backup --vmid $CTID --storage <s> --schedule '$BACKUP_SCHEDULE' --mode snapshot"
+    BACKUP_INFO="(failed — configure manually)"
+  fi
+elif [ "$ENABLE_BACKUP" = "yes" ]; then
+  warn "No backup-capable storage found — skipping backup job. Add one in Datacenter > Storage (content 'VZDump backup file')."
+  BACKUP_INFO="(no backup storage available)"
+fi
+
 # ---- summary --------------------------------------------------------------
 IP="$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')"
 echo
@@ -306,20 +344,22 @@ msg "freqtrade installed in CT $CTID."
 echo "  repo        : $REPO_URL ($BRANCH)"
 echo "  code dir    : $CT_DIR  (in CT, owned by $RUN_USER)"
 echo "  venv        : $VENV  (in $RUN_USER's home)"
-echo "  user_data   : $HOST_DATA  (on HOST) -> $CT_DIR/user_data (in CT)"
+echo "  user_data   : $CT_DIR/user_data  (INSIDE the CT, on $STORAGE)"
+echo "  backups     : $BACKUP_INFO"
 echo "  runs as     : $RUN_USER"
 echo "  IP          : ${IP:-<dhcp pending>}"
 echo
 echo "Multiple bots — one systemd instance per config (freqtrade@<name>):"
-echo "  1) per bot, drop ${HOST_DATA}/<name>.json (unique bot_name + api_server.listen_port)"
-echo "     generate: pct exec $CTID -- runuser -u $RUN_USER -- $VENV/bin/freqtrade new-config --config $CT_DIR/user_data/<name>.json"
+echo "  1) per bot, create a config (unique bot_name + api_server.listen_port):"
+echo "     pct exec $CTID -- runuser -u $RUN_USER -- $VENV/bin/freqtrade new-config --config $CT_DIR/user_data/<name>.json"
 echo "     DB + logfile are auto per-instance: user_data/<name>.sqlite, logs/<name>.log"
 echo "  2) pct exec $CTID -- systemctl enable --now freqtrade@<name>"
 echo "  3) status/logs: pct exec $CTID -- systemctl status 'freqtrade@*'"
 echo "                  pct exec $CTID -- journalctl -u freqtrade@<name> -f"
 
 if [ "$ENABLE_SSH" = "yes" ]; then
-  KEY_OUT="${HOST_DATA%/}/../${CTID}_id_ed25519"
+  mkdir -p "$KEY_DIR"
+  KEY_OUT="${KEY_DIR%/}/${CTID}_id_ed25519"
   pct exec "$CTID" -- cat /root/.ssh/ft_ed25519 > "$KEY_OUT" 2>/dev/null && chmod 600 "$KEY_OUT"
   echo
   echo "SSH for VS Code Remote-SSH / SFTP  (login: $RUN_USER):"
@@ -330,6 +370,9 @@ if [ "$ENABLE_SSH" = "yes" ]; then
   pct exec "$CTID" -- cat /root/.ssh/ft_ed25519
   echo "  -----------------------------------------------------------------------"
 fi
+echo
+echo "Data is INSIDE the CT and protected by the backup job above."
+echo "Restore the whole CT from a backup:  Datacenter > <node> > $BACKUP_STORAGE > Backups > Restore"
 echo
 echo "Update later:  pct exec $CTID -- runuser -u $RUN_USER -- bash -lc 'cd $CT_DIR && git pull && $VENV/bin/pip install -e .'"
 echo "               pct exec $CTID -- systemctl restart 'freqtrade@*'"
