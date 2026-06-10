@@ -129,6 +129,9 @@ cat >"$INSTALLER" <<INSTALL
 #!/usr/bin/env bash
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
+# CT inherits the host's LANG (en_US.UTF-8) which isn't generated here — force the
+# always-present C.UTF-8 to silence the perl/apt-listchanges locale warnings.
+export LANG=C.UTF-8 LC_ALL=C.UTF-8
 REPO_URL="$REPO_URL"; BRANCH="$BRANCH"; CT_DIR="$CT_DIR"
 ENABLE_SSH="$ENABLE_SSH"; ROOT_PW="${ROOT_PW:-}"
 
