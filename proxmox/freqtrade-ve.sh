@@ -13,13 +13,15 @@
 #   - SSH:          optional root password + sshd so you can VS Code Remote-SSH / SFTP in
 #
 # Non-interactive overrides (export before running to skip prompts):
-#   CTID HOSTNAME DISK CORES RAM SWAP BRIDGE STORAGE TEMPLATE_STORAGE
+#   CTID CT_HOSTNAME DISK CORES RAM SWAP BRIDGE STORAGE TEMPLATE_STORAGE
 #   REPO_CHOICE(fork|dev) ENABLE_SSH(yes|no) ROOT_PW DATA_ROOT
 #
 set -euo pipefail
 
 # ---- defaults -------------------------------------------------------------
-HOSTNAME="${HOSTNAME:-freqtrade-prod}"
+# NB: do NOT name this HOSTNAME — the PVE host shell exports HOSTNAME=pve,
+# which would override the default and name every CT "pve".
+CT_HOSTNAME="${CT_HOSTNAME:-freqtrade-prod}"
 DISK="${DISK:-16}"                # GB
 CORES="${CORES:-4}"
 RAM="${RAM:-4096}"                # MB
@@ -100,9 +102,9 @@ mkdir -p "$HOST_DATA"
 chown -R "${UNPRIV_ROOT_UID}:${UNPRIV_ROOT_UID}" "$HOST_DATA"
 
 # ---- create the container -------------------------------------------------
-msg "Creating LXC $CTID ($HOSTNAME)..."
+msg "Creating LXC $CTID ($CT_HOSTNAME)..."
 pct create "$CTID" "$TEMPLATE_REF" \
-  --hostname "$HOSTNAME" \
+  --hostname "$CT_HOSTNAME" \
   --cores "$CORES" --memory "$RAM" --swap "$SWAP" \
   --rootfs "${STORAGE}:${DISK}" \
   --net0 "name=eth0,bridge=${BRIDGE},ip=dhcp" \
