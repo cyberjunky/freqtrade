@@ -256,9 +256,11 @@ rm -rf /tmp/ftsrc
 chown -R "$RUN_USER:$RUN_USER" "$CT_DIR"
 
 echo "[ct] venv + install in $VENV (run user's home; ta-lib 0.6.x ships wheels)..."
+# [hyperopt] pulls scipy + scikit-learn — needed by strategies that use
+# scipy.signal (e.g. MovingGridStrategy_hyperopt) and to run hyperopt in the CT.
 run "python3 -m venv '$VENV'"
 run "'$VENV/bin/pip' install -q --upgrade pip wheel setuptools"
-run "'$VENV/bin/pip' install -q -e '$CT_DIR'"
+run "'$VENV/bin/pip' install -q -e '$CT_DIR[hyperopt]'"
 
 echo "[ct] init user_data + freqUI (as $RUN_USER)..."
 run "'$VENV/bin/freqtrade' create-userdir --userdir '$CT_DIR/user_data'" || true
