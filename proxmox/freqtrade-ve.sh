@@ -19,7 +19,7 @@
 set -euo pipefail
 
 # ---- defaults -------------------------------------------------------------
-HOSTNAME="${HOSTNAME:-freqtrade}"
+HOSTNAME="${HOSTNAME:-freqtrade-prod}"
 DISK="${DISK:-8}"                 # GB
 CORES="${CORES:-2}"
 RAM="${RAM:-2048}"                # MB
