@@ -31,7 +31,7 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pvesm status -content vztmpl 2>/dev/null
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # fallback
 DATA_ROOT="${DATA_ROOT:-/opt/ft-data}"    # host dir holding each CT's user_data
 CT_DIR="/opt/freqtrade"                   # install dir inside the container
-TEMPLATE_NAME="debian-12-standard"        # Python 3.11, matches freqtrade >=3.11
+TEMPLATE_NAME="debian-13-standard"        # Debian 13 trixie, Python 3.13 (freqtrade needs >=3.11)
 UNPRIV_ROOT_UID=100000                    # uid that CT-root maps to on the host
 
 FORK_URL="https://github.com/cyberjunky/freqtrade.git";  FORK_BRANCH="improvements"
