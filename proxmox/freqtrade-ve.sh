@@ -20,10 +20,10 @@ set -euo pipefail
 
 # ---- defaults -------------------------------------------------------------
 HOSTNAME="${HOSTNAME:-freqtrade-prod}"
-DISK="${DISK:-8}"                 # GB
-CORES="${CORES:-2}"
-RAM="${RAM:-2048}"                # MB
-SWAP="${SWAP:-512}"               # MB
+DISK="${DISK:-16}"                # GB
+CORES="${CORES:-4}"
+RAM="${RAM:-4096}"                # MB
+SWAP="${SWAP:-1024}"              # MB
 BRIDGE="${BRIDGE:-vmbr0}"
 STORAGE="${STORAGE:-local-lvm}"           # rootfs storage
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # where CT templates live
@@ -64,7 +64,7 @@ if [ -t 0 ] && command -v whiptail >/dev/null; then
   fi
 else
   REPO_CHOICE="${REPO_CHOICE:-fork}"
-  ENABLE_SSH="${ENABLE_SSH:-no}"
+  ENABLE_SSH="${ENABLE_SSH:-yes}"
 fi
 
 case "$REPO_CHOICE" in
@@ -72,7 +72,7 @@ case "$REPO_CHOICE" in
   dev)  REPO_URL="$DEV_URL";  BRANCH="$DEV_BRANCH"  ;;
   *) die "REPO_CHOICE must be 'fork' or 'dev'" ;;
 esac
-ENABLE_SSH="${ENABLE_SSH:-no}"
+ENABLE_SSH="${ENABLE_SSH:-yes}"
 
 # ---- template -------------------------------------------------------------
 msg "Ensuring $TEMPLATE_NAME template is present..."
