@@ -30,7 +30,7 @@ CORES="${CORES:-4}"
 RAM="${RAM:-4096}"                # MB
 SWAP="${SWAP:-1024}"              # MB
 BRIDGE="${BRIDGE:-vmbr0}"
-STORAGE="${STORAGE:-local-lvm}"           # rootfs storage
+STORAGE="${STORAGE:-}"                     # rootfs storage (prompted; falls back to local-lvm)
 # template storage: auto-pick the first storage that supports CT templates (vztmpl)
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pvesm status -content vztmpl 2>/dev/null | awk 'NR>1{print $1; exit}')}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # fallback
@@ -60,6 +60,17 @@ if [ -t 0 ] && command -v whiptail >/dev/null; then
     "fork" "cyberjunky/improvements  (blofin + your changes)" \
     "dev"  "freqtrade/develop        (stock latest)" \
     3>&1 1>&2 2>&3)}" || die "cancelled"
+
+  # rootfs storage — choose among storages that can hold a CT disk (content rootdir),
+  # showing usage so you can avoid a full pool.
+  _st_items=()
+  while read -r _n _t _u; do _st_items+=("$_n" "$_t  (${_u} used)"); done \
+    < <(pvesm status -content rootdir 2>/dev/null | awk 'NR>1{print $1, $2, $7}')
+  if [ "${#_st_items[@]}" -ge 2 ]; then
+    STORAGE="${STORAGE:-$(whiptail --title "rootfs storage" --menu \
+      "Where should the CT disk (rootfs) live?" 16 64 6 \
+      "${_st_items[@]}" 3>&1 1>&2 2>&3)}" || die "cancelled"
+  fi
 
   if whiptail --title "SSH access" --yesno \
        "Enable sshd for VS Code Remote-SSH / SFTP?" 9 60; then
@@ -94,6 +105,7 @@ esac
 
 # normalize (set -u safe). SSH_USER="" (explicitly) => root-only; unset => 'ft'.
 ENABLE_SSH="${ENABLE_SSH:-yes}"
+STORAGE="${STORAGE:-local-lvm}"    # fallback if not picked / non-interactive
 SSH_USER="${SSH_USER-ft}"
 SSH_USER_PW="${SSH_USER_PW:-}"
 ROOT_PW="${ROOT_PW:-}"
