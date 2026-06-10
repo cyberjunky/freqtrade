@@ -26,7 +26,9 @@ RAM="${RAM:-4096}"                # MB
 SWAP="${SWAP:-1024}"              # MB
 BRIDGE="${BRIDGE:-vmbr0}"
 STORAGE="${STORAGE:-local-lvm}"           # rootfs storage
-TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # where CT templates live
+# template storage: auto-pick the first storage that supports CT templates (vztmpl)
+TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pvesm status -content vztmpl 2>/dev/null | awk 'NR>1{print $1; exit}')}"
+TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # fallback
 DATA_ROOT="${DATA_ROOT:-/opt/ft-data}"    # host dir holding each CT's user_data
 CT_DIR="/opt/freqtrade"                   # install dir inside the container
 TEMPLATE_NAME="debian-12-standard"        # Python 3.11, matches freqtrade >=3.11
@@ -75,7 +77,12 @@ esac
 ENABLE_SSH="${ENABLE_SSH:-yes}"
 
 # ---- template -------------------------------------------------------------
-msg "Ensuring $TEMPLATE_NAME template is present..."
+if ! pvesm status -content vztmpl 2>/dev/null | awk 'NR>1{print $1}' | grep -qx "$TEMPLATE_STORAGE"; then
+  die "Storage '$TEMPLATE_STORAGE' does not allow CT templates (vztmpl).
+     Enable it:   pvesm set $TEMPLATE_STORAGE --content iso,vztmpl,backup,snippets
+     Or point at another storage:  TEMPLATE_STORAGE=<name> $0"
+fi
+msg "Ensuring $TEMPLATE_NAME template is present (storage: $TEMPLATE_STORAGE)..."
 pveam update >/dev/null 2>&1 || true
 TEMPLATE_FILE="$(pveam available --section system | awk -v n="$TEMPLATE_NAME" '$2 ~ n {print $2}' | sort | tail -n1)"
 [ -n "$TEMPLATE_FILE" ] || die "No $TEMPLATE_NAME template available via pveam."
