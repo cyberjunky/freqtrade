@@ -217,6 +217,10 @@ apt-get install -y -qq git curl ca-certificates sudo \
   build-essential libssl-dev libffi-dev pkg-config cmake gcc \
   sqlite3 libgomp1 libatlas3-base libgfortran5 >/dev/null
 
+# Generate en_US.UTF-8 so SSH clients (VS Code) forwarding LANG=en_US.UTF-8
+# don't spew "cannot change locale" warnings in every shell.
+localedef -i en_US -f UTF-8 en_US.UTF-8 >/dev/null 2>&1 || true
+
 echo "[ct] automatic security updates..."
 apt-get install -y -qq unattended-upgrades >/dev/null
 printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' \
