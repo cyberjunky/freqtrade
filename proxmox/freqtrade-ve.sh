@@ -250,10 +250,12 @@ systemctl daemon-reload
 if [ "$ENABLE_SSH" = yes ]; then
   echo "[ct] sshd (VS Code Remote-SSH / SFTP)..."
   apt-get install -y -qq openssh-server >/dev/null
-  # Debian 13 ships sshd_config.d drop-ins that OVERRIDE the main sshd_config
-  # (that's why editing the main file did nothing) — write a high-priority one.
+  # sshd uses the FIRST value seen for each keyword, and Debian Includes
+  # sshd_config.d/*.conf (alphabetical) at the top — so to override any other
+  # drop-in (e.g. a cloud/template one setting PasswordAuthentication no) ours
+  # must sort FIRST. Hence 00-ft.conf, not 99-.
   if [ -n "$SSH_USER" ]; then prl=prohibit-password; else prl=yes; fi
-  cat >/etc/ssh/sshd_config.d/99-ft.conf <<SSHD
+  cat >/etc/ssh/sshd_config.d/00-ft.conf <<SSHD
 PermitRootLogin $prl
 PasswordAuthentication yes
 PubkeyAuthentication yes
