@@ -37,8 +37,8 @@ STORAGE="${STORAGE:-}"                     # rootfs storage (prompted; falls bac
 # template storage: auto-pick the first storage that supports CT templates (vztmpl)
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pvesm status -content vztmpl 2>/dev/null | awk 'NR>1{print $1; exit}')}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"  # fallback
-CT_DIR="/opt/freqtrade"                   # freqtrade dir inside the container (code + user_data)
 KEY_DIR="${KEY_DIR:-/root/freqtrade-ct-keys}"  # host dir to stash the generated SSH key
+# CT_DIR / VENV are derived from the run user's home below (so the workspace shows them)
 TEMPLATE_NAME="debian-13-standard"        # Debian 13 trixie, Python 3.13 (freqtrade needs >=3.11)
 
 # backups: schedule a vzdump of the whole CT so in-container data is recoverable
@@ -139,9 +139,13 @@ if [ "$ENABLE_BACKUP" = "yes" ] && [ -z "$BACKUP_STORAGE" ]; then
   BACKUP_STORAGE="$(pvesm status -content backup 2>/dev/null | awk 'NR>1{print $1; exit}')"
 fi
 
-# run user + venv location (venv lives in the run user's home dir)
-if [ -n "$SSH_USER" ]; then RUN_USER="$SSH_USER"; VENV="/home/$SSH_USER/.venv"
-else RUN_USER="root"; VENV="/root/.venv"; fi
+# run user + paths. Install freqtrade UNDER the run user's home so the code AND
+# user_data show up in the VS Code remote workspace; venv stays in the freqtrade
+# dir (freqtrade's own .venv convention), i.e. inside the user's home tree.
+if [ -n "$SSH_USER" ]; then RUN_USER="$SSH_USER"; RUN_HOME="/home/$SSH_USER"
+else RUN_USER="root"; RUN_HOME="/root"; fi
+CT_DIR="$RUN_HOME/freqtrade"          # ~/freqtrade  -> user_data at ~/freqtrade/user_data
+VENV="$CT_DIR/.venv"
 
 # ---- template -------------------------------------------------------------
 if ! pvesm status -content vztmpl 2>/dev/null | awk 'NR>1{print $1}' | grep -qx "$TEMPLATE_STORAGE"; then
