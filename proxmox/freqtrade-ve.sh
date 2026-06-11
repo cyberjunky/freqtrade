@@ -266,9 +266,11 @@ echo "[ct] init user_data + freqUI (as $RUN_USER)..."
 run "'$VENV/bin/freqtrade' create-userdir --userdir '$CT_DIR/user_data'" || true
 run "'$VENV/bin/freqtrade' install-ui" || true
 
-echo "[ct] systemd template unit (one instance per bot, runs as $RUN_USER)..."
-# Usage: systemctl enable --now freqtrade@<name>
-#   -> config user_data/<name>.json, private DB user_data/<name>.sqlite
+echo "[ct] systemd template unit (one instance per config, runs as $RUN_USER)..."
+# Usage: systemctl enable --now freqtrade@<name>   -> uses user_data/<name>.json
+# The CONFIG drives everything (strategy, db_url, logfile, api_server.listen_port);
+# the unit does not override anything, so your existing per-bot configs work as-is.
+# Just give each config a distinct db_url / logfile / listen_port.
 cat >/etc/systemd/system/freqtrade@.service <<UNIT
 [Unit]
 Description=freqtrade bot %i
@@ -279,7 +281,7 @@ Wants=network-online.target
 Type=simple
 User=$RUN_USER
 WorkingDirectory=$CT_DIR
-ExecStart=$VENV/bin/freqtrade trade --config $CT_DIR/user_data/%i.json --userdir $CT_DIR/user_data --db-url sqlite:///$CT_DIR/user_data/%i.sqlite --logfile $CT_DIR/user_data/logs/%i.log
+ExecStart=$VENV/bin/freqtrade trade --config $CT_DIR/user_data/%i.json --userdir $CT_DIR/user_data
 Restart=on-failure
 RestartSec=10
 
@@ -360,9 +362,9 @@ echo "  runs as     : $RUN_USER"
 echo "  IP          : ${IP:-<dhcp pending>}"
 echo
 echo "Multiple bots — one systemd instance per config (freqtrade@<name>):"
-echo "  1) per bot, create a config (unique bot_name + api_server.listen_port):"
-echo "     pct exec $CTID -- runuser -u $RUN_USER -- $VENV/bin/freqtrade new-config --config $CT_DIR/user_data/<name>.json"
-echo "     DB + logfile are auto per-instance: user_data/<name>.sqlite, logs/<name>.log"
+echo "  1) per bot, place a config at $CT_DIR/user_data/<name>.json"
+echo "     give each its own: strategy, bot_name, db_url, logfile, api_server.listen_port"
+echo "     (generate a skeleton: pct exec $CTID -- runuser -u $RUN_USER -- $VENV/bin/freqtrade new-config --config $CT_DIR/user_data/<name>.json)"
 echo "  2) pct exec $CTID -- systemctl enable --now freqtrade@<name>"
 echo "  3) status/logs: pct exec $CTID -- systemctl status 'freqtrade@*'"
 echo "                  pct exec $CTID -- journalctl -u freqtrade@<name> -f"
