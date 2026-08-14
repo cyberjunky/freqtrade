@@ -73,6 +73,26 @@ def init_db(db_url: str) -> None:
             }
         )
 
+    if db_url.startswith("sqlite:///"):
+        # File-backed SQLite keeps SQLAlchemy's default QueuePool: 5
+        # connections plus 10 overflow. The bot loop, the API server and the
+        # RPC threads all draw from it, so a slow exchange cycle (retries
+        # against a rate-limited endpoint, say) parks connections long enough
+        # to exhaust it — at which point the API server dies with
+        # "QueuePool limit of size 5 overflow 10 reached" while the bot keeps
+        # trading, and the UI goes blank as though trades had vanished.
+        # SQLite tolerates many readers and serialises writes itself, so a
+        # wider pool costs nothing; the longer timeout prevents a transient
+        # burst from being fatal.
+        kwargs.update(
+            {
+                "pool_size": 20,
+                "max_overflow": 40,
+                "pool_timeout": 60,
+                "pool_recycle": 3600,
+            }
+        )
+
     try:
         engine = create_engine(db_url, future=True, **kwargs)
     except NoSuchModuleError:
