@@ -200,7 +200,7 @@ class Blofin(Exchange):
         try:
             res = self._api.set_position_mode(hedged=False)
             self._log_exchange_response("set_position_mode", res)
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except ccxt.ExchangeError as e:
             # Only swallow the "already configured" response — anything else
@@ -266,7 +266,7 @@ class Blofin(Exchange):
                 params={"marginMode": self.margin_mode.value},
             )
             self._log_exchange_response("set_leverage", res)
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.BadRequest, ccxt.OperationRejected, ccxt.InsufficientFunds) as e:
             if not accept_fail:
@@ -314,7 +314,7 @@ class Blofin(Exchange):
             raise InvalidOrderException(
                 f"Invalid order lookup (pair: {pair} id: {order_id}). Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -331,7 +331,7 @@ class Blofin(Exchange):
             )
             if found := self._search_order_in_list(closed_orders, order_id, "fetch_order_closed"):
                 return found
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -451,7 +451,7 @@ class Blofin(Exchange):
             balances.pop("used", None)
             self._log_exchange_response("fetch_balance", balances, add_info=merged_params)
             return balances
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -533,7 +533,7 @@ class Blofin(Exchange):
         """
         try:
             await self._api_async.load_markets(reload=reload, params={})
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             if self._is_cloudflare_block(str(e)):
@@ -611,7 +611,7 @@ class Blofin(Exchange):
                 f"Exchange {self._api.name} does not support fetching historical "
                 f"candle (OHLCV) data. Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             if self._is_cloudflare_block(str(e)):

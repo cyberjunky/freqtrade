@@ -683,7 +683,7 @@ class Exchange:
     async def _api_reload_markets(self, reload: bool = False) -> None:
         try:
             await self._api_async.load_markets(reload=reload, params={})
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1508,7 +1508,7 @@ class Exchange:
                 f"Tried to {side} amount {amount} at rate {rate}. "
                 f"Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1663,7 +1663,7 @@ class Exchange:
                 f"Tried to {side} amount {amount} at rate {limit_rate} with "
                 f"stop-price {stop_price_norm}. Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1696,7 +1696,7 @@ class Exchange:
             raise InvalidOrderException(
                 f"Tried to get an invalid order (pair: {pair} id: {order_id}). Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1726,7 +1726,7 @@ class Exchange:
             raise InvalidOrderException(
                 f"Tried to get an invalid order (pair: {pair} id: {order_id}). Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1799,7 +1799,7 @@ class Exchange:
             return order
         except ccxt.InvalidOrder as e:
             raise InvalidOrderException(f"Could not cancel order. Message: {e}") from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1887,7 +1887,7 @@ class Exchange:
 
             self._log_exchange_response("fetch_balance", balances, add_info=params)
             return balances
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1914,7 +1914,7 @@ class Exchange:
             positions: list[CcxtPosition] = self._api.fetch_positions(symbols, params=params or {})
             self._log_exchange_response("fetch_positions", positions)
             return positions
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -1966,7 +1966,7 @@ class Exchange:
             self._log_exchange_response("fetch_orders", orders)
             orders = [self._order_contracts_to_amount(o) for o in orders]
             return orders
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2009,7 +2009,7 @@ class Exchange:
             trading_fees: dict[str, Any] = self._api.fetch_trading_fees()
             self._log_exchange_response("fetch_trading_fees", trading_fees)
             return trading_fees
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2042,7 +2042,7 @@ class Exchange:
                 f"Exchange {self._api.name} does not support fetching bids/asks in batch. "
                 f"Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2097,7 +2097,7 @@ class Exchange:
             self.reload_markets(True)
             # Re-raise exception to repeat the call.
             raise TemporaryError from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2162,7 +2162,7 @@ class Exchange:
                 raise ExchangeError(f"Pair {pair} not available")
             data: Ticker = self._api.fetch_ticker(pair)
             return data
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2186,7 +2186,7 @@ class Exchange:
             raise OperationalException(
                 f"Exchange {self._api.name} does not support fetching funding rate. Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2236,7 +2236,7 @@ class Exchange:
             raise OperationalException(
                 f"Exchange {self._api.name} does not support fetching order book. Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2437,7 +2437,7 @@ class Exchange:
             matched_trades = self._trades_contracts_to_amount(matched_trades)
 
             return matched_trades
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -2495,7 +2495,7 @@ class Exchange:
                 price=price,
                 takerOrMaker=taker_or_maker,
             )["rate"]
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -3031,7 +3031,7 @@ class Exchange:
                 f"Exchange {self._api.name} does not support fetching historical "
                 f"candle (OHLCV) data. Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -3313,7 +3313,7 @@ class Exchange:
                 f"Exchange {self._api.name} does not support fetching historical trade data."
                 f"Message: {e}"
             ) from e
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -3529,7 +3529,7 @@ class Exchange:
                 "funding_history", funding_history, add_info=f"pair: {pair}, since: {since}"
             )
             return sum(fee["amount"] for fee in funding_history)
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -3542,7 +3542,7 @@ class Exchange:
     def get_leverage_tiers(self) -> dict[str, list[dict]]:
         try:
             return self._api.fetch_leverage_tiers()
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -3557,7 +3557,7 @@ class Exchange:
         try:
             tier = await self._api_async.fetch_market_leverage_tiers(symbol)
             return symbol, tier
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -3789,7 +3789,7 @@ class Exchange:
         try:
             res = self._api.set_leverage(symbol=pair, leverage=leverage)
             self._log_exchange_response("set_leverage", res)
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.BadRequest, ccxt.OperationRejected, ccxt.InsufficientFunds) as e:
             if not accept_fail:
@@ -3840,7 +3840,7 @@ class Exchange:
         try:
             res = self._api.set_margin_mode(margin_mode.value, pair, params)
             self._log_exchange_response("set_margin_mode", res)
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except ccxt.MarginModeAlreadySet as e:
             logger.debug(f"Margin mode already set for {pair}. Message: {e}")
