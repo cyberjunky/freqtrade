@@ -1,78 +1,84 @@
 # Improvements
 
-All notable changes to this project are documented here.
+All notable changes this fork makes on top of upstream freqtrade `develop` are documented here.
 
 ---
 
-## [Unreleased] — 2026-05-13
+## [Unreleased] — 2026-08-15
 
-### Added
+### Hyperliquid
 
-#### BloFin Swap Exchange Support (`freqtrade/exchange/blofin.py`)
+- **`RateLimitExceeded` now gets backoff, not just `DDoSProtection`.** In ccxt, `RateLimitExceeded`
+  is a sibling of `DDoSProtection` (both inherit from `NetworkError`), not a subclass of it. Every
+  exchange exception handler in freqtrade only caught `DDoSProtection`, so a 429 from Hyperliquid's
+  `/info` endpoint fell through to a plain `TemporaryError` — which the retrier retries
+  *immediately, with no delay*, hammering an endpoint that just told it to back off. Widened all 47
+  occurrences of `except ccxt.DDoSProtection` across 10 exchange files (`exchange.py`,
+  `hyperliquid.py`, `blofin.py`, `binance.py`, `bybit.py`, `bitget.py`, `okx.py`, `gate.py`,
+  `kraken.py`, `krakenfutures.py`) to also catch `ccxt.RateLimitExceeded`.
+- **Quieter websocket noise.** Transient Hyperliquid WS disconnect/reconnect chatter no longer spams
+  the logs at warning level.
 
-New `Blofin(Exchange)` class enabling perpetual swap trading on BloFin via freqtrade.
+### BloFin swap exchange support (`freqtrade/exchange/blofin.py`)
 
-BloFin is a swap-only exchange with several deviations from the standard freqtrade exchange model. The following were handled:
+`Blofin(Exchange)` — perpetual swap trading on BloFin, futures-only (`isolated` margin), one-way
+(net) position mode. BloFin deviates from freqtrade's exchange model in several ways, each handled
+by an override:
 
 | Problem | Solution |
 |---------|---------|
-| `fetchOrder: None` in ccxt blofin | `fetch_order()` override: searches `fetchOpenOrders` then `fetchClosedOrders` by order ID |
-| `fetchLeverageTiers: False` | `load_leverage_tiers()` override: derives max leverage from `market['limits']['leverage']['max']` |
-| `set_leverage` requires `marginMode` param | `_lev_prep()` override: passes `marginMode` explicitly to `set_leverage` |
-| Margin mode is account-wide | `_lev_prep()` calls base `set_margin_mode()` which ignores symbol on BloFin |
-| Futures balance in separate account | `get_balances()` override: fetches with `accountType='futures'` |
-| Position mode must be set once | `additional_exchange_init()` calls `set_position_mode(hedged=False)` for net/one-way mode |
-| Order params need `marginMode` + `positionSide` | `_get_params()` override: appends both fields for futures orders |
+| `fetchOrder` unsupported by ccxt's BloFin adapter | `fetch_order()` searches `fetchOpenOrders` then `fetchClosedOrders` by order ID |
+| ccxt's `describe()` advertises `fetchOrder: None`, so freqtrade's pre-flight `validate_exchange` check rejects the exchange before our subclass even loads | `describe()` patched at import time on all three ccxt submodules (sync/async/pro) to advertise `fetchOrder: True` |
+| `fetchLeverageTiers` unsupported | `load_leverage_tiers()` derives one flat tier per symbol from `market['limits']['leverage']['max']`, with a conservative 2% default maintenance margin rate when the exchange doesn't expose one |
+| `set_leverage` requires an explicit `marginMode` param | `_lev_prep()` passes it explicitly |
+| Margin mode is account-wide, not per-symbol | `_lev_prep()` calls the base `set_margin_mode()`, which BloFin ignores the symbol on |
+| Position mode must be set once at startup | `additional_exchange_init()` calls `set_position_mode(hedged=False)` |
+| Order params need `marginMode` + `positionSide` | `_get_params()` appends both for futures orders |
+| Public endpoints sit behind Cloudflare, which serves a JS challenge / 429 HTML page to non-browser clients | A real browser `User-Agent` is set on both sync and async ccxt clients; Cloudflare 403/429/1015 HTML responses are detected and collapsed into a single retryable `DDosProtection` (with backoff) instead of dumping the whole page on every retry |
+| ccxt's `fetch_ohlcv` never sends BloFin's `after` cursor, so only the most recent ~500 candles come back regardless of `since` — no real history | `_async_get_candle_history()` paginates the REST candle endpoint directly with `after`, enabling real historic backfill |
+| ccxt advertises `fetchMarkOHLCV`/`fetchIndexOHLCV` as unsupported | Routed to BloFin's `/market/mark-price-candles` and `/market/index-candles` endpoints directly, enabling futures backtesting (which needs mark candles) |
+| Candle limit undocumented in ccxt (hardcoded comment claims max 100) | `ohlcv_candle_limit` raised to 1440 — BloFin's REST endpoint accepts it |
+| Volume column off-by-one | `_fetch_blofin_ohlcv` guarded index 5 with `len(r) > 6` (needs 7 columns to read the 6th). Native BloFin responses have 9 columns so this passed by luck, but a 6-column reply (e.g. from a caching proxy) silently zeroed volume on every candle — disabling any strategy gate on `volume > 0` with no error anywhere. Fixed to `len(r) > 5`. |
+| `baseVolume` reported in contracts, not base currency; `quoteVolume` left `None` | `get_tickers()` synthesizes `quoteVolume = baseVolume × contractSize × last` for linear swaps so `VolumePairList` has something to sort on |
+| Futures balance lives in a separate account view | `get_balances()` fetches with `accountType='swap'` (trading-account equity/available-margin view, not the wallet-holdings view) |
+| No `fetchFundingHistory` in dry-run | Funding fees are read live via `fetchFundingHistory`; dry-run returns `0.0` since BloFin has no `fetchMarkOHLCV` to simulate from |
+| WebSocket `watch_ohlcv` | Disabled (`ws_enabled: False`) — empirically, candle reuse never succeeds for BloFin in a long-running multi-pair bot (confirmed over a 10h live run); REST-only avoids the connection overhead and log spam for zero benefit |
 
-**Supported trading modes:** `futures` with `isolated` or `cross` margin.
+### Custom pairlist handlers from `user_data/pairlist/`
 
-**Default position mode:** net (one-way) — one position per symbol. Direction flips require closing the existing position first.
+Custom `IPairList` subclasses placed in `user_data/pairlist/` are discovered and loaded by
+`PairListResolver`, mirroring how strategies load from `user_data/strategies/`.
 
-**Leverage tiers:** Built from market data at startup. One flat tier per symbol using the exchange-reported max leverage.
-
-#### Exchange Registry Updates
-
-- `freqtrade/exchange/__init__.py` — exports `Blofin`
-- `freqtrade/exchange/common.py` — adds `"blofin"` to `SUPPORTED_EXCHANGES`
-
-#### Example Configuration (`user_data/config_blofin.json`)
-
-Ready-to-use config for BloFin swap trading:
-- `trading_mode: futures`, `margin_mode: isolated`
-- `stake_currency: USDT`, `stake_amount: 10`
-- `dry_run: true` — safe default; change to `false` for live trading
-- Requires `password` (API passphrase) in addition to `key` and `secret`
-
-#### Notes (BloFin)
-
-- **No changes to `MovingGridStrategy`** — the strategy is exchange-agnostic. BloFin's contract sizing is handled transparently by freqtrade's `amount_to_contracts()` / `contracts_to_amount()` utilities using the market's `contractSize` field.
-- Stop-loss on exchange is disabled (`stoploss_on_exchange: false`) — BloFin uses a dedicated TPSL API endpoint not yet wired into freqtrade's stoploss flow.
-- WebSocket order streaming is not used — freqtrade polls via REST, which is compatible with BloFin's REST API.
-
----
-
-#### User-defined pairlist handlers from `user_data/pairlist/`
-
-Custom `IPairList` subclasses placed in `user_data/pairlist/` are now
-discovered and loaded by `PairListResolver`, mirroring how strategies are
-loaded from `user_data/strategies/`.
-
-**Usage:**
-
-1. Create `user_data/pairlist/MyPairList.py` containing a class that extends
-   `IPairList`.
-2. Reference it by class name in `config.json`:
-   ```json
-   "pairlists": [{"method": "MyPairList"}]
-   ```
-
-**Files changed:**
+**Usage:** create `user_data/pairlist/MyPairList.py` with a class extending `IPairList`, then
+reference it by class name in the config: `"pairlists": [{"method": "MyPairList"}]`.
 
 | File | Change |
 |------|--------|
 | `freqtrade/constants.py` | Added `USERPATH_PAIRLISTS = "pairlist"` |
-| `freqtrade/resolvers/pairlist_resolver.py` | Set `user_subdir = USERPATH_PAIRLISTS` so the resolver searches `user_data/pairlist/` |
-| `freqtrade/configuration/directory_operations.py` | Added `USERPATH_PAIRLISTS` to `sub_dirs` so `freqtrade create-userdir` creates `user_data/pairlist/` |
-| `freqtrade/config_schema/config_schema.py` | Removed `"enum": AVAILABLE_PAIRLISTS` from the `method` field, allowing custom class names to pass config validation |
-| `build_helpers/schema.json` | Regenerated to match — removed the `"enum"` array from `pairlists → items → properties → method` |
-| `tests/plugins/test_pairlist.py` | Added `test_load_pairlist_from_user_data` |
+| `freqtrade/resolvers/pairlist_resolver.py` | Set `user_subdir = USERPATH_PAIRLISTS` |
+| `freqtrade/configuration/directory_operations.py` | `freqtrade create-userdir` now creates `user_data/pairlist/` |
+| `freqtrade/config_schema/config_schema.py` + `build_helpers/schema.json` | `pairlists[].method` accepts arbitrary strings (`anyOf` string-with-enum-hint + plain string), not just the built-in `AVAILABLE_PAIRLISTS` enum |
+
+Example handler tracked at `user_data/pairlist/OscillationFilter.py`.
+
+### Misc
+
+- **SQLite connection pool widened** (`freqtrade/persistence/models.py`). File-backed SQLite kept
+  SQLAlchemy's default `QueuePool` of 5 + 10 overflow, shared by the bot loop, the API server, and
+  the RPC threads. A slow exchange cycle (retries against a rate-limited endpoint, say) parks
+  connections long enough to exhaust it — the API server then dies with `QueuePool limit of size 5
+  overflow 10 reached` while the bot keeps trading, so the UI shows no trades as though the database
+  had emptied. SQLite tolerates many readers and serialises writes itself, so a wider pool
+  (`pool_size=20`, `max_overflow=40`, `pool_timeout=60`) costs nothing.
+
+### Proxmox deployment (`proxmox/freqtrade-ve.sh`)
+
+Self-contained PVE host script that provisions an unprivileged Debian 13 (trixie) LXC, installs
+freqtrade (this fork or stock `develop`), bind-mounts `user_data` from the host so it stays visible
+in an editor over SSH, ships a `freqtrade@.service` template for running multiple bots, and sets up
+a scheduled `vzdump` backup job. Iterated since the initial script to: pick storage pools
+interactively (with usage shown), default to 4 vCPU / 4G / 16G with SSH enabled, run the bot as the
+non-root provisioning user with a matching sshd drop-in, generate the `en_US.UTF-8` / `C.UTF-8`
+locales (silences SSH `LANG`-forward warnings), install the `hyperopt` extra so scipy-using
+strategies load, and read the freqtrade systemd unit's `--db-url`/`--logfile` from config instead of
+forcing them.
