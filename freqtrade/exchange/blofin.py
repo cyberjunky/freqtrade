@@ -684,7 +684,12 @@ class Blofin(Exchange):
                     float(r[2]),
                     float(r[3]),
                     float(r[4]),
-                    float(r[5]) if has_volume and len(r) > 6 else 0.0,
+                    # `> 5`, not `> 6`: index 5 needs six columns, not seven.
+                    # Native BloFin sends nine so the old bound passed by
+                    # luck, but any six-column reply (e.g. from a proxy) fell
+                    # to 0.0 and silently zeroed volume on every candle —
+                    # which disables any strategy gating on volume > 0.
+                    float(r[5]) if has_volume and len(r) > 5 else 0.0,
                 ]
             )
         return candles
