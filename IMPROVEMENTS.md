@@ -59,7 +59,25 @@ reference it by class name in the config: `"pairlists": [{"method": "MyPairList"
 | `freqtrade/configuration/directory_operations.py` | `freqtrade create-userdir` now creates `user_data/pairlist/` |
 | `freqtrade/config_schema/config_schema.py` + `build_helpers/schema.json` | `pairlists[].method` accepts arbitrary strings (`anyOf` string-with-enum-hint + plain string), not just the built-in `AVAILABLE_PAIRLISTS` enum |
 
-Example handler tracked at `user_data/pairlist/OscillationFilter.py`.
+Example handler tracked at `user_data/pairlist/OscillationFilter.py`, filtering pairs by choppiness
+(range-bound oscillation) rather than trend. Current live config:
+
+```json
+{
+    "method": "OscillationFilter",
+    "lookback_days": 7,
+    "timeframe": "1h",
+    "min_oscillation_ratio": 0.3,
+    "min_reversals_per_day": 2.0,
+    "max_spike_ratio": 8.0,
+    "min_choppiness": 42.0,
+    "max_doji_ratio": 0.3,
+    "recent_hours": 24,
+    "recent_min_oscillation_ratio": 0.25,
+    "recent_min_choppiness": 40.0,
+    "refresh_period": 1800
+}
+```
 
 ### Misc
 
