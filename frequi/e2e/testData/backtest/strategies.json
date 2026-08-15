@@ -1,7 +1,0 @@
-{
-    "strategies": [
-        "AdvancedTest",
-        "AverageStrategy",
-        "SampleStrategy"
-    ]
-}

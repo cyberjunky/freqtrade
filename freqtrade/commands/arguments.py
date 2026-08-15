@@ -212,7 +212,7 @@ ARGS_PLOT_PROFIT = [
 
 ARGS_CONVERT_DB = ["db_url", "db_url_from"]
 
-ARGS_INSTALL_UI = ["erase_ui_only", "ui_prerelease", "ui_version", "ui_local"]
+ARGS_INSTALL_UI = ["erase_ui_only", "ui_prerelease", "ui_version"]
 
 ARGS_SHOW_TRADES = ["db_url", "trade_ids", "print_json"]
 
@@ -534,7 +534,7 @@ class Arguments:
         # Add edge subcommand
         edge_cmd = subparsers.add_parser(
             "edge",
-            # help="Edge module. No longer part of Freqtrade",
+            help="Edge module. No longer part of Freqtrade",
             parents=[_common_parser, _strategy_parser],
         )
         edge_cmd.set_defaults(func=start_edge)

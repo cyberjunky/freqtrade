@@ -587,15 +587,6 @@ AVAILABLE_CLI_OPTIONS = {
         action="store_true",
         default=False,
     ),
-    "ui_local": Arg(
-        "--local",
-        help=(
-            "Install the vendored FreqUI build shipped in this repo (frequi/dist) "
-            "instead of downloading a release from GitHub."
-        ),
-        action="store_true",
-        default=False,
-    ),
     # Templating options
     "template": Arg(
         "--template",
