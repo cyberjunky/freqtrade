@@ -4,9 +4,9 @@ from time import monotonic
 from typing import Any, NoReturn
 
 from cachetools import TLRUCache
-from pandas import DataFrame
+from pandas import DataFrame, isna
 
-from freqtrade.constants import DEFAULT_DATAFRAME_COLUMNS
+from freqtrade.candle_columns import get_candle_columns
 from freqtrade.enums import CandleType
 from freqtrade.exceptions import OperationalException
 from freqtrade.exchange import timeframe_to_seconds
@@ -104,7 +104,13 @@ def informative(
     * {column} - name of dataframe column.
     * {timeframe} - timeframe of informative dataframe.
     :param ffill: ffill dataframe after merging informative pair.
-    :param candle_type: '', mark, index, premiumIndex, or funding_rate
+    :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
+        None or '' (the default) resolves to the trading mode's candle type.
+        Attention: Availability for non-spot/futures candle-types across exchanges may vary.
+           funding_rate candles only contain the "funding_rate" column (open for historic reasons)
+           open_interest candles only contain the "open_interest_amount" and
+           "open_interest_value" columns.
+           All other columns will be missing from these dataframes.
     :param cache: Cache populated indicators in dry/live mode while the latest informative candle
                   remains unchanged. Entries expire after two effective informative timeframes
                   without an update. Disable for methods that use external state, have side effects,
@@ -149,9 +155,19 @@ def _format_pair_name(config, pair: str, market: dict[str, Any] | None = None) -
     ).upper()
 
 
-def _informative_dataframe_fingerprint(dataframe: DataFrame) -> tuple[Any, ...]:
+# NaN never compares equal to itself, so a NaN anywhere in the fingerprint would make every
+# lookup a miss. Some candle types have legitimately empty columns - open interest is reported
+# in the base currency, the quote currency, or both, depending on exchange and market - so a
+# permanently NaN column must not silently disable the cache.
+_MISSING = object()
+
+
+def _informative_dataframe_fingerprint(
+    dataframe: DataFrame, candle_type: CandleType | None
+) -> tuple[Any, ...]:
     last_candle = dataframe.iloc[-1]
-    return (len(dataframe), *(last_candle[column] for column in DEFAULT_DATAFRAME_COLUMNS))
+    values = (last_candle[column] for column in get_candle_columns(candle_type))
+    return (len(dataframe), *(_MISSING if isna(value) else value for value in values))
 
 
 def _raise_reserved_column_name() -> NoReturn:
@@ -194,7 +210,7 @@ def _get_populated_informative_dataframe(
         _raise_reserved_column_name()
 
     if cache is not None:
-        fingerprint = _informative_dataframe_fingerprint(dataframe)
+        fingerprint = _informative_dataframe_fingerprint(dataframe, cache_key.candle_type)
         cached: _InformativeCacheEntry | None = cache.get(cache_key)
         if cached is not None and cached.fingerprint == fingerprint:
             return cached.prepared.dataframe

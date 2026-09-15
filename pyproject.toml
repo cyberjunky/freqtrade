@@ -30,7 +30,7 @@ classifiers = [
 
 dependencies = [
   # from requirements.txt
-  "ccxt>=4.5.4",
+  "ccxt>=4.5.76",
   "SQLAlchemy>=2.0.6",
   "python-telegram-bot>=20.1",
   "humanize>=4.0.0",
@@ -56,6 +56,7 @@ dependencies = [
   "questionary",
   "prompt-toolkit",
   "joblib>=1.2.0",
+  "cloudpickle>=3.1.2,<4.0",
   "rich",
   'pyarrow; platform_machine != "armv7l"',
   "fastapi",
@@ -276,13 +277,13 @@ extend-ignore = [
   "RUF022",  # unsorted-dunder-all
   "RUF005",  # list concatenation
   "BLE001",  # Do not catch blind exception: `Exception`
+  "SIM117",  # Multiple with statements
   # TODO: the below rules are in the default now and should be reconsidered.
   "N999",  # Invalid module name
   # "DTZ",  # Use timezone-aware datetime objects
   "DTZ007",  # Use timezone-aware datetime objects
   "TRY401",  # Redundant exception object in logging.exception call
-  "TRY",
-  "SIM",
+  "TRY004",  # Wrong exception type when raising for type error
 ]
 
 
