@@ -77,7 +77,7 @@ class Gate(Exchange):
                 else:
                     self.unified_account = False
                     logger.info("Gate: Classic account.")
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -131,3 +131,13 @@ class Gate(Exchange):
                                 "rate": pair_fees[takerOrMaker],
                             }
         return trades
+
+
+class GateEU(Gate):
+    """Gate.io EU exchange class.
+    Minimal adjustment to disable futures trading for the EU version of gate.io.
+    """
+
+    _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
+        (TradingMode.SPOT, MarginMode.NONE),
+    ]

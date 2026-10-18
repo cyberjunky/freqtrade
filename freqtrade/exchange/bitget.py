@@ -46,6 +46,8 @@ class Bitget(Exchange):
             PriceType.LAST: "fill_price",
             PriceType.MARK: "mark_price",
         },
+        # ccxt maps "total" to accountEquity, which includes unrealized PnL
+        "balance_includes_unrealized_pnl": True,
     }
 
     _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
@@ -63,7 +65,7 @@ class Bitget(Exchange):
         * 1000 candles for up-to-date data
         * 200 candles for historic data (prior to a certain date)
         :param timeframe: Timeframe to check
-        :param candle_type: Candle-type
+        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
         :param since_ms: Starting timestamp
         :return: Candle limit as integer
         """
@@ -124,7 +126,7 @@ class Bitget(Exchange):
                         return self._convert_stop_order(pair, order_id, order)
                 except (ccxt.OrderNotFound, ccxt.InvalidOrder):
                     pass
-                except ccxt.DDoSProtection as e:
+                except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
                     raise DDosProtection(e) from e
                 except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
                     raise TemporaryError(
@@ -164,11 +166,10 @@ class Bitget(Exchange):
         Must be overridden in child methods if required.
         """
         try:
-            if not self._config["dry_run"]:
-                if self.trading_mode == TradingMode.FUTURES:
-                    position_mode = self._api.set_position_mode(False)
-                    self._log_exchange_response("set_position_mode", position_mode)
-        except ccxt.DDoSProtection as e:
+            if not self._config["dry_run"] and self.trading_mode == TradingMode.FUTURES:
+                position_mode = self._api.set_position_mode(False)
+                self._log_exchange_response("set_position_mode", position_mode)
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(

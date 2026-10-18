@@ -56,7 +56,7 @@ class Kraken(Exchange):
         """
         consolidated: CcxtBalances = {}
         for currency, balance in balances.items():
-            base_currency = currency[:-2] if currency.endswith(".F") else currency
+            base_currency = currency.removesuffix(".F")
 
             if base_currency in consolidated:
                 consolidated[base_currency]["free"] += balance["free"]
@@ -102,7 +102,7 @@ class Kraken(Exchange):
 
             self._log_exchange_response("fetch_balance2", balances)
             return balances
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(

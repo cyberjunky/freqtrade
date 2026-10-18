@@ -115,7 +115,7 @@ class Krakenfutures(Exchange):
 
             self._log_exchange_response("fetch_balance", balances, add_info=params)
             return balances
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
@@ -123,6 +123,15 @@ class Krakenfutures(Exchange):
             ) from e
         except ccxt.BaseError as e:
             raise OperationalException(e) from e
+
+    def balance_includes_unrealized_pnl(self) -> bool:
+        """
+        Not expressible as a static flag for this exchange.
+        get_balances() above synthesizes the USD balance from marginEquity, which includes
+        unrealized PnL. Any other stake currency falls through to ccxt, which reports the
+        flex account's plain "quantity" (wallet balance) instead.
+        """
+        return str(self._config.get("stake_currency", "")).upper() == "USD"
 
     @staticmethod
     def _safe_float(value: Any) -> float | None:
@@ -209,7 +218,7 @@ class Krakenfutures(Exchange):
         except ccxt.OrderNotFound:
             # Expected for older Kraken Futures orders not visible in orders/status.
             pass
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except ccxt.InvalidOrder as e:
             msg = f"Tried to get an invalid order (pair: {pair} id: {order_id}). Message: {e}"
@@ -280,7 +289,7 @@ class Krakenfutures(Exchange):
         except (ccxt.OrderNotFound, ccxt.InvalidOrder) as e:
             logger.debug(f"{fetch_fn.__name__} failed: {e}")
             return None
-        except ccxt.DDoSProtection as e:
+        except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
             raise TemporaryError(
