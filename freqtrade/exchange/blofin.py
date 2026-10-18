@@ -280,6 +280,25 @@ class Blofin(Exchange):
         except ccxt.BaseError as e:
             raise OperationalException(e) from e
 
+    def _order_contracts_to_amount(self, order: CcxtOrder) -> CcxtOrder:
+        """Convert contract amounts and restore the notional order cost.
+
+        ccxt's BloFin ``parse_order`` sets ``cost`` to ``average * amount / leverage``,
+        i.e. the margin, not the notional. Freqtrade derives the fee *rate* as
+        ``fee_cost / cost`` for quote-currency fees, so on a leveraged trade the
+        recorded fee rate is inflated by the leverage factor (0.06% taker shows up
+        as 0.18% at 3x) and every closed trade is reported ~2x(leverage-1)x fee
+        worse than the exchange charged. Recompute ``cost`` as ``filled * average``
+        (``filled`` is already in base units after the contract conversion).
+        """
+        order = super()._order_contracts_to_amount(order)
+        if self.trading_mode == TradingMode.FUTURES:
+            filled = order.get("filled")
+            price = order.get("average") or order.get("price")
+            if filled and price:
+                order["cost"] = float(filled) * float(price)
+        return order
+
     def _search_order_in_list(
         self, orders: list[CcxtOrder], order_id: str, label: str
     ) -> CcxtOrder | None:

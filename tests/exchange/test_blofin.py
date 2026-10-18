@@ -930,3 +930,54 @@ def test_blofin_only_supports_isolated_futures(default_conf, mocker):
     assert (TradingMode.FUTURES, MarginMode.ISOLATED) in pairs
     assert (TradingMode.FUTURES, MarginMode.CROSS) not in pairs
     assert (TradingMode.SPOT, MarginMode.NONE) not in pairs
+
+
+def test_blofin_order_cost_is_notional_not_margin(default_conf, mocker):
+    """ccxt's blofin parse_order divides cost by leverage; freqtrade then computes the fee
+    rate as fee / cost, which over-reports fees by the leverage factor (3x -> 0.18%
+    instead of 0.06%). The order hook must restore cost = filled * average."""
+    default_conf["dry_run"] = False
+    default_conf["trading_mode"] = TradingMode.FUTURES
+    default_conf["margin_mode"] = MarginMode.ISOLATED
+    api_mock = MagicMock()
+    order = {
+        "id": "1",
+        "symbol": "ETH/USDT:USDT",
+        "status": "closed",
+        "side": "sell",
+        "amount": 807.0,
+        "filled": 807.0,
+        "remaining": 0.0,
+        "price": 0.97,
+        "average": 0.97,
+        "cost": 260.93,  # margin, as ccxt reports it at 3x leverage
+        "fee": {"cost": 0.469674, "currency": "USDT", "rate": None},
+        "info": {},
+    }
+    api_mock.fetch_open_orders = MagicMock(return_value=[order])
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    mocker.patch(f"{EXMS}.get_contract_size", return_value=1.0)
+    fetched = exchange.fetch_order("1", "ETH/USDT:USDT")
+    assert fetched["cost"] == pytest.approx(807.0 * 0.97)
+    rate = exchange.calculate_fee_rate(fetched["fee"], "ETH/USDT:USDT", fetched["cost"], fetched["filled"])
+    assert rate == pytest.approx(0.0006, abs=1e-6)
+
+
+def test_blofin_order_cost_untouched_when_unfilled_or_spot(default_conf, mocker):
+    api_mock = MagicMock()
+    order = {"id": "2", "symbol": "ETH/USDT:USDT", "status": "open", "side": "buy", "amount": 10.0,
+             "filled": 0.0, "remaining": 10.0, "price": 1.0, "average": None, "cost": 0.0, "fee": None, "info": {}}
+    api_mock.fetch_open_orders = MagicMock(return_value=[order])
+    default_conf["dry_run"] = False
+    default_conf["trading_mode"] = TradingMode.FUTURES
+    default_conf["margin_mode"] = MarginMode.ISOLATED
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    mocker.patch(f"{EXMS}.get_contract_size", return_value=1.0)
+    assert exchange.fetch_order("2", "ETH/USDT:USDT")["cost"] == 0.0
+    default_conf["trading_mode"] = TradingMode.SPOT
+    default_conf["margin_mode"] = MarginMode.NONE
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    mocker.patch(f"{EXMS}.get_contract_size", return_value=1.0)
+    filled = dict(order, filled=10.0, average=1.0, cost=5.0, status="closed")
+    api_mock.fetch_open_orders = MagicMock(return_value=[filled])
+    assert exchange.fetch_order("2", "ETH/USDT:USDT")["cost"] == 5.0
