@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, PropertyMock
 
 import ccxt
@@ -747,17 +747,19 @@ def test_blofin_get_funding_fees_dry_run_returns_zero_silently(default_conf, moc
     exchange._fetch_and_calculate_funding_fees.assert_not_called()
 
 
-def test_blofin_get_funding_fees_live_uses_exchange_history(default_conf, mocker):
-    """Live futures: read from BloFin's funding history (which ccxt supports)."""
+def test_blofin_get_funding_fees_live_uses_account_endpoint(default_conf, mocker):
+    """Live futures: read BloFin's GET /api/v1/account/funding-fees (ccxt's
+    fetchFundingHistory stub raises NotSupported, so the base path is not used)."""
     now = datetime.now(UTC)
     default_conf["dry_run"] = False
     default_conf["trading_mode"] = "futures"
     default_conf["margin_mode"] = "isolated"
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
-    exchange._get_funding_fees_from_exchange = MagicMock(return_value=2.5)
+    exchange._fetch_blofin_funding_fees = MagicMock(return_value=2.5)
+    exchange._get_funding_fees_from_exchange = MagicMock(side_effect=AssertionError("ccxt path must not be used"))
     result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
     assert result == 2.5
-    exchange._get_funding_fees_from_exchange.assert_called_once_with("BTC/USDT:USDT", now)
+    exchange._fetch_blofin_funding_fees.assert_called_once_with("BTC/USDT:USDT", now)
 
 
 def test_blofin_get_funding_fees_live_swallows_exchange_error(default_conf, mocker, caplog):
@@ -769,9 +771,7 @@ def test_blofin_get_funding_fees_live_swallows_exchange_error(default_conf, mock
     default_conf["trading_mode"] = "futures"
     default_conf["margin_mode"] = "isolated"
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
-    exchange._get_funding_fees_from_exchange = MagicMock(
-        side_effect=ExchangeError("api boom")
-    )
+    exchange._fetch_blofin_funding_fees = MagicMock(side_effect=ExchangeError("api boom"))
     result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
     assert result == 0.0
     assert log_has_re(r"Could not update funding fees for BTC/USDT:USDT", caplog)
@@ -981,3 +981,53 @@ def test_blofin_order_cost_untouched_when_unfilled_or_spot(default_conf, mocker)
     filled = dict(order, filled=10.0, average=1.0, cost=5.0, status="closed")
     api_mock.fetch_open_orders = MagicMock(return_value=[filled])
     assert exchange.fetch_order("2", "ETH/USDT:USDT")["cost"] == 5.0
+
+
+def test_blofin_get_funding_fees_sums_account_funding_fees(default_conf, mocker):
+    """ccxt's fetchFundingHistory stub raises NotSupported; the class reads
+    GET /api/v1/account/funding-fees directly (fundingFee positive = received)."""
+    default_conf["dry_run"] = False
+    default_conf["trading_mode"] = TradingMode.FUTURES
+    default_conf["margin_mode"] = MarginMode.ISOLATED
+    api_mock = MagicMock()
+    api_mock.request = MagicMock(return_value={"code": "0", "data": [
+        {"billId": "1", "instId": "ETH-USDT", "fundingFee": "-0.25", "fundingTime": "1", "ts": "1"},
+        {"billId": "2", "instId": "ETH-USDT", "fundingFee": "0.10", "fundingTime": "2", "ts": "2"},
+        {"billId": "3", "instId": "BTC-USDT", "fundingFee": "5.00", "fundingTime": "3", "ts": "3"},
+    ]})
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    mocker.patch(f"{EXMS}.markets", PropertyMock(return_value={"ETH/USDT:USDT": {"id": "ETH-USDT", "symbol": "ETH/USDT:USDT"}}))
+    open_date = datetime.now(UTC) - timedelta(hours=10)
+    fees = exchange.get_funding_fees("ETH/USDT:USDT", 1.0, False, open_date)
+    assert fees == pytest.approx(-0.15)
+    call = api_mock.request.call_args
+    assert call.args[0] == "account/funding-fees"
+    assert call.kwargs["params"]["instId"] == "ETH-USDT"
+    assert int(call.kwargs["params"]["end"]) - int(call.kwargs["params"]["begin"]) <= 7 * 24 * 3600 * 1000
+
+
+def test_blofin_get_funding_fees_pages_in_seven_day_windows(default_conf, mocker):
+    default_conf["dry_run"] = False
+    default_conf["trading_mode"] = TradingMode.FUTURES
+    default_conf["margin_mode"] = MarginMode.ISOLATED
+    api_mock = MagicMock()
+    api_mock.request = MagicMock(return_value={"code": "0", "data": [{"instId": "ETH-USDT", "fundingFee": "1"}]})
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    mocker.patch(f"{EXMS}.markets", PropertyMock(return_value={"ETH/USDT:USDT": {"id": "ETH-USDT"}}))
+    fees = exchange.get_funding_fees("ETH/USDT:USDT", 1.0, True, datetime.now(UTC) - timedelta(days=20))
+    assert api_mock.request.call_count == 3          # 20 days -> three 7-day pages
+    assert fees == pytest.approx(3.0)
+
+
+def test_blofin_get_funding_fees_dry_run_and_errors(default_conf, mocker, caplog):
+    api_mock = MagicMock()
+    api_mock.request = MagicMock(side_effect=ccxt.ExchangeError("boom"))
+    default_conf["trading_mode"] = TradingMode.FUTURES
+    default_conf["margin_mode"] = MarginMode.ISOLATED
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    assert exchange.get_funding_fees("ETH/USDT:USDT", 1.0, False, datetime.now(UTC)) == 0.0   # dry-run: silent 0
+    default_conf["dry_run"] = False
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
+    mocker.patch(f"{EXMS}.markets", PropertyMock(return_value={"ETH/USDT:USDT": {"id": "ETH-USDT"}}))
+    assert exchange.get_funding_fees("ETH/USDT:USDT", 1.0, False, datetime.now(UTC) - timedelta(hours=1)) == 0.0
+    assert log_has_re(r"Could not update funding fees for ETH/USDT:USDT", caplog)

@@ -30,6 +30,7 @@ from freqtrade.exceptions import (
 from freqtrade.exchange import Exchange
 from freqtrade.exchange.common import API_FETCH_ORDER_RETRY_COUNT, retrier, retrier_async
 from freqtrade.exchange.exchange_utils_timeframe import timeframe_to_msecs
+from freqtrade.util.datetime_helpers import dt_now, dt_ts
 from freqtrade.exchange.exchange_types import (
     CcxtBalances,
     CcxtOrder,
@@ -717,25 +718,47 @@ class Blofin(Exchange):
         self, pair: str, amount: float, is_short: bool, open_date: datetime
     ) -> float:
         """
-        Return funding fees for a futures position.
+        Return the funding fees paid / received on a futures position since ``open_date``.
 
-        In live mode we read the exchange's funding history directly via ccxt's
-        ``fetchFundingHistory`` (which BloFin supports). In dry-run we return
-        ``0.0`` silently: BloFin's ccxt does not expose ``fetchMarkOHLCV``, so
-        the base-class dry-run path that simulates funding from
-        funding-rate × mark-price candles cannot run. Funding is small enough
-        relative to PnL that this approximation is acceptable for backtests.
+        ccxt's BloFin class declares ``fetchFundingHistory`` but the method only raises
+        ``NotSupported``, so the base implementation never worked (every trade showed
+        ``funding_fees = 0`` and logged "Could not update funding fees"). BloFin does
+        expose the data: ``GET /api/v1/account/funding-fees`` (``begin``/``end`` in ms, at
+        most 7 days apart, ``instId`` optional, ``fundingFee`` positive = received,
+        negative = paid). We page through 7-day windows and sum ``fundingFee`` for the
+        pair, which matches the sign convention of ccxt's funding history ``amount``.
+
+        Dry-run returns ``0.0``: BloFin has no mark-price candles, so the base class
+        cannot simulate funding from rate x mark.
         """
         if self.trading_mode != TradingMode.FUTURES:
             return 0.0
         if self._config.get("dry_run"):
-            # No mark OHLCV available on BloFin → can't simulate. Stay quiet.
             return 0.0
         try:
-            return self._get_funding_fees_from_exchange(pair, open_date)
-        except ExchangeError:
-            logger.warning("Could not update funding fees for %s.", pair)
+            return self._fetch_blofin_funding_fees(pair, open_date)
+        except (TemporaryError, ExchangeError, ccxt.BaseError) as e:
+            logger.warning("Could not update funding fees for %s: %s", pair, e)
             return 0.0
+
+    _FUNDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+    def _fetch_blofin_funding_fees(self, pair: str, open_date: datetime) -> float:
+        """Sum of ``fundingFee`` for ``pair`` from ``open_date`` to now (7-day pages)."""
+        inst_id = self.markets[pair]["id"]
+        begin = dt_ts(open_date)
+        end = dt_ts(dt_now())
+        total = 0.0
+        while begin < end:
+            page_end = min(begin + self._FUNDING_WINDOW_MS, end)
+            params = {"begin": str(begin), "end": str(page_end), "instId": inst_id, "limit": "1000"}
+            response = self._api.request("account/funding-fees", api="private", method="GET", params=params)
+            self._log_exchange_response("funding_fees", response, add_info=params)
+            for row in response.get("data") or []:
+                if row.get("instId") == inst_id:
+                    total += float(row.get("fundingFee") or 0.0)
+            begin = page_end + 1
+        return total
 
     def get_maintenance_ratio_and_amt(
         self, pair: str, notional_value: float
