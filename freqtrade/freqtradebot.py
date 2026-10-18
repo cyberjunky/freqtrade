@@ -47,6 +47,7 @@ from freqtrade.leverage.liquidation_price import update_liquidation_prices
 from freqtrade.misc import safe_value_fallback, safe_value_fallback2
 from freqtrade.mixins import LoggingMixin
 from freqtrade.persistence import Order, PairLocks, Trade, init_db
+from freqtrade.persistence.custom_data import _CustomData
 from freqtrade.persistence.key_value_store import set_startup_time
 from freqtrade.plugins.pairlistmanager import PairListManager
 from freqtrade.plugins.protectionmanager import ProtectionManager
@@ -234,10 +235,12 @@ class FreqtradeBot(LoggingMixin):
         try:
             # Wrap db activities in shutdown to avoid problems if database is gone,
             # and raises further exceptions.
-            if self.config.get("cancel_open_orders_on_exit"):
-                self.cancel_all_open_orders()
+            # Trade.session is missing if startup failed before init_db().
+            if hasattr(Trade, "session"):
+                if self.config.get("cancel_open_orders_on_exit"):
+                    self.cancel_all_open_orders()
 
-            self.check_for_open_trades()
+                self.check_for_open_trades()
         except Exception as e:
             logger.warning(f"Exception during cleanup: {e.__class__.__name__} {e}")
 
@@ -356,6 +359,8 @@ class FreqtradeBot(LoggingMixin):
             self.enter_positions(free_trade_slots)
         self._schedule.run_pending()
         Trade.commit()
+        # Custom data commits on every write - so ending a read session is safe.
+        _CustomData.session.rollback()
         self.rpc.process_msg_queue(self.dataprovider._msg_queue)
         self.last_process = datetime.now(UTC)
 
@@ -599,7 +604,7 @@ class FreqtradeBot(LoggingMixin):
 
             except InvalidOrderException as e:
                 logger.warning(f"Error updating Order {order.order_id} due to {e}.")
-                if order.order_date_utc - timedelta(days=5) < datetime.now(UTC):
+                if order.order_date_utc < datetime.now(UTC) - timedelta(days=5):
                     logger.warning(
                         "Order is older than 5 days. Assuming order was fully cancelled."
                     )
@@ -2220,11 +2225,12 @@ class FreqtradeBot(LoggingMixin):
         :return: amount to exit
         :raise: DependencyException: if available balance is not within 2% of the available amount.
         """
-        # Update wallets to ensure amounts tied up in a stoploss is now free!
-        self.wallets.update()
         if self.trading_mode == TradingMode.FUTURES:
             # A safe exit amount isn't needed for futures, you can just exit/close the position
             return amount
+
+        # Update wallets to ensure amounts tied up in a stoploss is now free!
+        self.wallets.update()
 
         trade_base_currency = self.exchange.get_pair_base_currency(pair)
         # Free + Used - open orders will eventually still be canceled.

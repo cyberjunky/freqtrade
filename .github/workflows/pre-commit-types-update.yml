@@ -16,10 +16,18 @@ jobs:
     runs-on: ubuntu-24.04
     # Only run this job for pull requests created by dependabot[bot]
     if: >
-      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      (
+        (
+          github.event.pull_request.user.login == 'dependabot[bot]' &&
+          startsWith(github.head_ref, 'dependabot/')
+        ) ||
+        (
+          github.event.pull_request.user.login == 'renovate[bot]' &&
+          startsWith(github.head_ref, 'renovate/')
+        )
+      ) &&
       github.repository == github.event.pull_request.head.repo.full_name &&
-      github.event_name == 'pull_request' &&
-      startsWith(github.head_ref, 'dependabot/')
+      github.event_name == 'pull_request'
 
     environment:
       name: dependabot-pulls
@@ -32,7 +40,7 @@ jobs:
         ref: ${{ github.head_ref || github.ref }}
 
     - name: Install uv and Python 🐍
-      uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       with:
         activate-environment: true
         python-version: "3.13"

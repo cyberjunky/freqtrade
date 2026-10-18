@@ -136,9 +136,9 @@ def test_bot_cleanup(mocker, default_conf_usdt, caplog) -> None:
     assert coo_mock.call_count == 1
 
 
-def test_bot_cleanup_db_errors(mocker, default_conf_usdt, caplog) -> None:
+def test_bot_cleanup_db_errors(mocker, default_conf_usdt, caplog, monkeypatch) -> None:
     mocker.patch("freqtrade.freqtradebot.Trade.commit", side_effect=OperationalException())
-    mocker.patch(
+    check_mock = mocker.patch(
         "freqtrade.freqtradebot.FreqtradeBot.check_for_open_trades",
         side_effect=OperationalException(),
     )
@@ -147,6 +147,17 @@ def test_bot_cleanup_db_errors(mocker, default_conf_usdt, caplog) -> None:
     freqtrade.emc.shutdown = MagicMock()
     freqtrade.cleanup()
     assert freqtrade.emc.shutdown.call_count == 1
+    assert check_mock.call_count == 1
+    assert log_has_re(r"Exception during cleanup: OperationalException.*", caplog)
+
+    # Startup failed before init_db() - Trade.session doesn't exist.
+    caplog.clear()
+    check_mock.reset_mock()
+    monkeypatch.delattr(Trade, "session")
+    freqtrade.cleanup()
+    assert check_mock.call_count == 0
+    assert not log_has_re(r"Exception during cleanup.*", caplog)
+    assert not log_has_re(r"Error during cleanup.*", caplog)
 
 
 @pytest.mark.parametrize("runmode", [RunMode.DRY_RUN, RunMode.LIVE])
@@ -4739,7 +4750,7 @@ def test_check_for_open_trades(mocker, default_conf_usdt, fee, is_short):
 
 @pytest.mark.parametrize("is_short", [False, True])
 @pytest.mark.usefixtures("init_persistence")
-def test_startup_update_open_orders(mocker, default_conf_usdt, fee, caplog, is_short):
+def test_startup_update_open_orders(mocker, default_conf_usdt, fee, caplog, is_short, time_machine):
     freqtrade = get_patched_freqtradebot(mocker, default_conf_usdt)
     create_mock_trades(fee, is_short=is_short)
     mocker.patch(f"{EXMS}._dry_is_price_crossed", return_value=False)
@@ -4770,7 +4781,15 @@ def test_startup_update_open_orders(mocker, default_conf_usdt, fee, caplog, is_s
 
     mocker.patch(f"{EXMS}.fetch_order", side_effect=InvalidOrderException)
     hto_mock = mocker.patch("freqtrade.freqtradebot.FreqtradeBot.handle_cancel_order")
+    # Recent orders which are not found should be kept open.
+    caplog.clear()
+    freqtrade.startup_update_open_orders()
+    assert not log_has_re(r"Order is older than \d days.*", caplog)
+    assert hto_mock.call_count == 0
+    assert len(Order.get_open_orders()) == 3
+
     # Orders which are no longer found after X days should be assumed as canceled.
+    time_machine.move_to(dt_now() + timedelta(days=6))
     freqtrade.startup_update_open_orders()
     assert log_has_re(r"Order is older than \d days.*", caplog)
     assert hto_mock.call_count == 3

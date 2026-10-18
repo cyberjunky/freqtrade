@@ -7,8 +7,10 @@ from sqlalchemy import select
 
 from freqtrade.constants import UNLIMITED_STAKE_AMOUNT
 from freqtrade.exceptions import DependencyException
-from freqtrade.persistence import Trade, WalletHistory
-from freqtrade.wallets import PositionWallet, Wallet
+from freqtrade.exchange.exchange_utils import TICK_SIZE
+from freqtrade.persistence import LocalTrade, Order, Trade, WalletHistory
+from freqtrade.util import dt_now
+from freqtrade.wallets import PositionWallet, Wallet, Wallets
 from tests.conftest import (
     EXMS,
     create_mock_trades,
@@ -322,6 +324,34 @@ def test_sync_wallet_futures_live(mocker, default_conf):
             "side": "short",
             "percentage": None,
         },
+        {
+            # Cross position without liquidation price - binance reports collateral 0
+            "id": None,
+            "symbol": "WLD/USDT:USDT",
+            "contracts": 5.0,
+            "contractSize": 1.0,
+            "unrealizedPnl": 0.2365,
+            "leverage": 5.0,
+            "liquidationPrice": None,
+            "collateral": 0.0,
+            "notional": 11.978,
+            "markPrice": 2.3956,
+            "entryPrice": 2.3483,
+            "timestamp": 1722062678998,
+            "initialMargin": 2.3956,
+            "initialMarginPercentage": 0.2,
+            "maintenanceMargin": None,
+            "maintenanceMarginPercentage": None,
+            "marginRatio": None,
+            "datetime": "2024-07-27T06:44:38.998Z",
+            "marginMode": "cross",
+            "marginType": "cross",
+            "side": "long",
+            "hedged": False,
+            "percentage": 9.87,
+            "stopLossPrice": None,
+            "takeProfitPrice": None,
+        },
     ]
     mocker.patch.multiple(
         EXMS,
@@ -336,18 +366,20 @@ def test_sync_wallet_futures_live(mocker, default_conf):
     freqtrade = get_patched_freqtradebot(mocker, default_conf)
 
     assert len(freqtrade.wallets._wallets) == 1
-    assert len(freqtrade.wallets._positions) == 2
+    assert len(freqtrade.wallets._positions) == 3
 
     assert "USDT" in freqtrade.wallets._wallets
     assert "ETH/USDT:USDT" in freqtrade.wallets._positions
     assert freqtrade.wallets._last_wallet_refresh is not None
     assert freqtrade.wallets.get_owned("ETH/USDT:USDT", "ETH") == 1000
     assert freqtrade.wallets.get_owned("SOL/USDT:USDT", "SOL") == 0
+    assert freqtrade.wallets.get_owned("WLD/USDT:USDT", "WLD") == 5.0
+    assert freqtrade.wallets._positions["WLD/USDT:USDT"].collateral == 2.3956
 
     # Remove ETH/USDT:USDT position
     del mock_result[0]
     freqtrade.wallets.update()
-    assert len(freqtrade.wallets._positions) == 1
+    assert len(freqtrade.wallets._positions) == 2
     assert "ETH/USDT:USDT" not in freqtrade.wallets._positions
 
 
@@ -415,6 +447,60 @@ def test_sync_wallet_futures_live_no_positions_unchanged(mocker, default_conf_us
     )
     freqtrade = get_patched_freqtradebot(mocker, default_conf_usdt)
     assert freqtrade.wallets.get_total("USDT") == 1000
+
+
+def test_sync_wallet_dry_zero_realized_profit(mocker, default_conf_usdt):
+    default_conf_usdt["dry_run_wallet"] = 1000
+    trade = LocalTrade(
+        pair="ETH/USDT",
+        stake_amount=300,
+        open_rate=100,
+        amount=3,
+        is_open=True,
+        open_date=dt_now(),
+        fee_open=0,
+        fee_close=0,
+        leverage=1,
+        price_precision=0.01,
+        precision_mode_price=TICK_SIZE,
+    )
+    mocker.patch("freqtrade.wallets.Trade.get_trades_proxy", return_value=[trade])
+    mocker.patch("freqtrade.wallets.Trade.get_total_closed_profit", return_value=0)
+    exchange = MagicMock()
+    exchange.get_proxy_coin.return_value = "USDT"
+    exchange.get_pair_base_currency.return_value = "ETH"
+    wallets = Wallets(default_conf_usdt, exchange)
+
+    for idx, (side, amount, price, free) in enumerate(
+        [("buy", 3, 100, 700), ("sell", 1, 110, 810), ("sell", 1, 90, 900)]
+    ):
+        trade.orders.append(
+            Order(
+                ft_order_side=side,
+                ft_pair=trade.pair,
+                order_id=f"order_{idx}",
+                ft_is_open=False,
+                ft_amount=amount,
+                ft_price=price,
+                status="closed",
+                symbol=trade.pair,
+                order_type="market",
+                side=side,
+                price=price,
+                average=price,
+                filled=amount,
+                remaining=0,
+                cost=amount * price,
+                order_date=trade.open_date,
+                order_filled_date=trade.open_date,
+            )
+        )
+        trade.recalc_trade_from_orders()
+        wallets.update()
+        assert wallets.get_free("USDT") == free
+
+    assert trade.realized_profit == 0
+    assert wallets.get_free("ETH") == 1
 
 
 def test_sync_wallet_dry(mocker, default_conf_usdt, fee):

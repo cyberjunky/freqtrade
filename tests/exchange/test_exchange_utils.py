@@ -80,13 +80,13 @@ def test_check_exchange(default_conf, caplog) -> None:
     caplog.clear()
 
     # Test a 'bad' exchange, which known to have serious problems
-    default_conf.get("exchange").update({"name": "bitmex"})
+    default_conf.get("exchange").update({"name": "poloniex"})
     with pytest.raises(OperationalException, match=r"Exchange .* will not work with Freqtrade\..*"):
         check_exchange(default_conf)
     caplog.clear()
 
     # Test a 'bad' exchange with check_for_bad=False
-    default_conf.get("exchange").update({"name": "bitmex"})
+    default_conf.get("exchange").update({"name": "poloniex"})
     assert check_exchange(default_conf, False)
     assert log_has_re(
         r"Exchange .* is known to the ccxt library, available for the bot, "
@@ -362,6 +362,9 @@ def test_amount_to_precision(
         (722.2, SIGNIFICANT_DIGITS, 2, 730.0, ROUND_UP),
         (777.7, SIGNIFICANT_DIGITS, 2, 780.0, ROUND_UP),
         (777.7, SIGNIFICANT_DIGITS, 3, 778.0, ROUND_UP),
+        (700.0, SIGNIFICANT_DIGITS, 1, 700.0, ROUND_UP),
+        (720.0, SIGNIFICANT_DIGITS, 2, 720.0, ROUND_UP),
+        (110000.0, SIGNIFICANT_DIGITS, 5, 110000.0, ROUND_UP),
         (722.2, SIGNIFICANT_DIGITS, 1, 700.0, ROUND_DOWN),
         (722.2, SIGNIFICANT_DIGITS, 2, 720.0, ROUND_DOWN),
         (777.7, SIGNIFICANT_DIGITS, 2, 770.0, ROUND_DOWN),
