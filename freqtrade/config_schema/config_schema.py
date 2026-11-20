@@ -1067,10 +1067,16 @@ CONF_SCHEMA = {
                     "type": "integer",
                     "default": 60,
                 },
-                "ccxt_config": {"description": "CCXT configuration settings.", "type": "object"},
+                "ccxt_config": {
+                    "description": (
+                        "CCXT configuration settings - applicable to both synchronous "
+                        "and asynchronous usage."
+                    ),
+                    "type": "object",
+                },
                 "ccxt_async_config": {
                     "description": (
-                        "CCXT asynchronous configuration settings."
+                        "CCXT asynchronous configuration settings. "
                         "Usually ccxt_config should be used instead."
                     ),
                     "type": "object",
@@ -1145,6 +1151,14 @@ CONF_SCHEMA = {
                             "ws_token": {
                                 "description": "WebSocket token for the producer.",
                                 "type": "string",
+                            },
+                            "request_full_dataframe": {
+                                "description": (
+                                    "Receive the full analyzed dataframe from this producer "
+                                    "on every update instead of only the latest candle."
+                                ),
+                                "type": "boolean",
+                                "default": False,
                             },
                         },
                         "required": ["name", "host", "ws_token"],

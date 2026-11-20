@@ -1936,6 +1936,65 @@ def test_get_overall_performance(fee):
 
 @pytest.mark.usefixtures("init_persistence")
 @pytest.mark.parametrize(
+    "profits,expected_profit_ratio,expected_profit_pct",
+    [
+        ([0.2, 0.1], 0.15, 15.0),
+        ([0.2, -0.1], 0.05, 5.0),
+        ([0.2, -0.1, -0.1], 0.0, 0.0),
+        ([0.12345, 0.10001], 0.11173, 11.17),
+    ],
+)
+def test_get_mix_tag_performance_aggregated_profit(
+    profits, expected_profit_ratio, expected_profit_pct
+):
+    for idx, profit in enumerate(profits):
+        trade = Trade(
+            pair="BTC/USDT",
+            stake_amount=100.0,
+            amount=1.0,
+            open_rate=100.0,
+            fee_open=0.0,
+            fee_close=0.0,
+            exchange="binance",
+            is_open=False,
+            enter_tag="entry",
+            exit_reason="exit_signal",
+            close_profit=profit,
+            close_profit_abs=profit * 100,
+        )
+        trade.orders.append(
+            Order(
+                ft_order_side="buy",
+                ft_pair="BTC/USDT",
+                ft_is_open=False,
+                ft_amount=1.0,
+                ft_price=100.0,
+                order_id=f"buy_{idx}",
+                status="closed",
+                symbol="BTC/USDT",
+                order_type="market",
+                side="buy",
+                price=100.0,
+                average=100.0,
+                amount=1.0,
+                filled=1.0,
+            )
+        )
+        Trade.session.add(trade)
+    Trade.commit()
+
+    res = Trade.get_mix_tag_performance(None)
+
+    assert len(res) == 1
+    assert res[0]["mix_tag"] == "entry exit_signal"
+    assert res[0]["count"] == len(profits)
+    assert res[0]["profit_ratio"] == pytest.approx(expected_profit_ratio)
+    assert res[0]["profit_pct"] == expected_profit_pct
+    assert res[0]["profit_abs"] == pytest.approx(sum(profits) * 100)
+
+
+@pytest.mark.usefixtures("init_persistence")
+@pytest.mark.parametrize(
     "is_short,pair,profit",
     [
         (True, "XRP/BTC", -0.00018780487),

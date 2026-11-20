@@ -1678,11 +1678,8 @@ def test_hyperopt_list(mocker, capsys, caplog, tmp_path):
     assert csv_file.is_file()
     line = csv_file.read_text()
     assert (
-        'Best,1,2,-1.25%,-1.2222,-0.00125625,BTC,-2.51,"3,930.0 m",-0.00125625,23.00%,0.43662'
-        in line
-        or "Best,1,2,-1.25%,-1.2222,-0.00125625,BTC,-2.51,2 days 17:30:00,2,0,-0.00125625,23.00%,"
-        "0.43662"
-        in line
+        'Best,1,2,-1.25%,-1.2222,-0.00125625,BTC,-2.51,"2 days, 17:30:00",2,0,-0.00125625,23.00%,'
+        "0.43662" in line
     )
     csv_file.unlink()
 
@@ -2023,6 +2020,75 @@ def test_backtesting_show(mocker, testdatadir, capsys):
     assert sbr.call_count == 1
     out, _err = capsys.readouterr()
     assert "Pairs for Strategy" in out
+
+
+def test_backtesting_show_params(mocker, tmp_path, user_dir, capsys, caplog):
+    from freqtrade.optimize.optimize_reports import store_backtest_results
+
+    mocker.patch("freqtrade.optimize.optimize_reports.show_backtest_results")
+    strategy_dir = user_dir / "strategies"
+    strategy_dir.mkdir(parents=True)
+    strategy_file = strategy_dir / "strategy_test_v3.py"
+    shutil.copy(
+        Path(__file__).parent.parent / "strategy" / "strats" / "strategy_test_v3.py", strategy_file
+    )
+    params_file = strategy_file.with_suffix(".json")
+
+    store_backtest_results(
+        {"exportdirectory": tmp_path, "original_config": {}},
+        {"metadata": {}, "strategy": {"StrategyTestV3": {}}, "strategy_comparison": []},
+        "2024_01_01_15_05_25",
+        strategy_files={"StrategyTestV3": str(strategy_file)},
+        strategy_params={"StrategyTestV3": {"buy": {"buy_rsi": 21}}},
+    )
+
+    args = ["backtesting-show", "--export-directory", str(tmp_path)]
+    pargs = get_args(args)
+    pargs["config"] = None
+    start_backtesting_show(pargs)
+
+    out, _err = capsys.readouterr()
+    # Parameters are only shown when asked for
+    assert "STRATEGY PARAMETERS FOR" not in out
+
+    pargs = get_args([*args, "--show-params"])
+    pargs["config"] = None
+    start_backtesting_show(pargs)
+
+    out, _err = capsys.readouterr()
+    assert "STRATEGY PARAMETERS FOR" in out
+    assert "buy_rsi" in out
+    # and only written to disk when asked for
+    assert not params_file.exists()
+
+    pargs = get_args([*args, "--export-params"])
+    pargs["config"] = None
+    start_backtesting_show(pargs)
+
+    exported = json.loads(params_file.read_text())
+    assert exported["strategy_name"] == "StrategyTestV3"
+    assert exported["params"] == {"buy": {"buy_rsi": 21}}
+    assert exported["ft_stratparam_v"] == 1
+
+    # A result without stored parameters says so, instead of showing nothing
+    params_file.unlink()
+    no_params_dir = tmp_path / "no_params"
+    no_params_dir.mkdir()
+    store_backtest_results(
+        {"exportdirectory": no_params_dir, "original_config": {}},
+        {"metadata": {}, "strategy": {"StrategyTestV3": {}}, "strategy_comparison": []},
+        "2024_01_01_15_05_25",
+        strategy_files={"StrategyTestV3": str(strategy_file)},
+    )
+    pargs = get_args(
+        ["backtesting-show", "--export-directory", str(no_params_dir), "--show-params"]
+    )
+    pargs["config"] = None
+    start_backtesting_show(pargs)
+
+    out, _err = capsys.readouterr()
+    assert "STRATEGY PARAMETERS FOR" not in out
+    assert log_has("No parameters stored for StrategyTestV3.", caplog)
 
 
 def test_start_convert_db(fee, tmp_path):

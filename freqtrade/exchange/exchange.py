@@ -21,7 +21,7 @@ from ccxt import TICK_SIZE
 from dateutil import parser
 from pandas import DataFrame, Timestamp, concat
 
-from freqtrade.configuration import remove_exchange_credentials
+from freqtrade.configuration import remove_exchange_credentials, sanitize_config
 from freqtrade.constants import (
     DEFAULT_AMOUNT_RESERVE_PERCENT,
     DEFAULT_TRADES_COLUMNS,
@@ -168,6 +168,7 @@ class Exchange(LoggingMixin):
         "mark_ohlcv_price": "mark",
         "mark_ohlcv_timeframe": "1h",
         "funding_fee_timeframe": "1h",
+        "funding_history_limit": None,  # Page size for fetch_funding_history
         "ccxt_futures_name": "swap",
         "needs_trading_fees": False,  # use fetch_trading_fees to cache fees
         "balance_includes_unrealized_pnl": False,  # ccxt "total" is plain wallet balance
@@ -320,6 +321,7 @@ class Exchange(LoggingMixin):
 
         logger.info(f'Using Exchange "{self.name}"')
         self.required_candle_call_count = 1
+        self._startup_candle_count: int = 0
         # Converts the interval provided in minutes in config to seconds
         self.markets_refresh_interval: int = (
             exchange_conf.get("markets_refresh_interval", 60) * 60 * 1000
@@ -386,7 +388,7 @@ class Exchange(LoggingMixin):
         return loop
 
     def _set_startup_candle_count(self, config: Config) -> None:
-        self._startup_candle_count: int = config.get("startup_candle_count", 0)
+        self._startup_candle_count = config.get("startup_candle_count", 0)
         self.required_candle_call_count = self.validate_required_startup_candles(
             self._startup_candle_count, config.get("timeframe", "")
         )
@@ -444,7 +446,8 @@ class Exchange(LoggingMixin):
             "privateKey": exchange_config.get("private_key", exchange_config.get("privateKey")),
         }
         if ccxt_kwargs:
-            logger.info("Applying additional ccxt config: %s", ccxt_kwargs)
+            sanitized = sanitize_config({"exchange": {"ccxt_config": ccxt_kwargs}})
+            logger.info("Applying additional ccxt config: %s", sanitized["exchange"]["ccxt_config"])
         if self._ccxt_params:
             # Inject static options after the above output to not confuse users.
             ccxt_kwargs = deep_merge_dicts(self._ccxt_params, deepcopy(ccxt_kwargs))
@@ -572,7 +575,7 @@ class Exchange(LoggingMixin):
         """
         Exchange ohlcv candle limit
         Uses ohlcv_candle_limit_per_timeframe if the exchange has different limits
-        per timeframe (e.g. bittrex), otherwise falls back to ohlcv_candle_limit
+        per timeframe (e.g. htx), otherwise falls back to ohlcv_candle_limit
         :param timeframe: Timeframe to check
         :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
         :param since_ms: Starting timestamp
@@ -1293,7 +1296,7 @@ class Exchange(LoggingMixin):
                     "cost": (_amount * average),
                 }
             )
-            # market orders will always incurr taker fees
+            # market orders will always incur taker fees
             dry_order = self.add_dry_order_fee(pair, dry_order, "taker")
 
         dry_order = self.check_dry_limit_order_filled(
@@ -2999,19 +3002,6 @@ class Exchange(LoggingMixin):
             and bool(ticks)
             and (ticks[-1][0] >= curr_candle_date or not candles_final)
         )
-        if cache:
-            # Remember when this pair was last queried
-            self._pairs_last_poll_time[(pair, timeframe, c_type)] = fetch_start_ms
-            # keeping last candle time as last refreshed time of the pair
-            kept_ticks = ticks[:-1] if drop_incomplete_ else ticks
-            if kept_ticks:
-                # The newest candle we hold - a provisional last candle was dropped above.
-                self._pairs_last_refresh_time[(pair, timeframe, c_type)] = kept_ticks[-1][0]
-            elif ticks:
-                # The response held nothing but a dropped candle - remember the candle before
-                # it, so the pair is re-checked at candle cadence instead of on every iteration.
-                last_refresh = ticks[-1][0] - timeframe_to_msecs(timeframe)
-                self._pairs_last_refresh_time[(pair, timeframe, c_type)] = last_refresh
         has_cache = cache and (pair, timeframe, c_type) in self._klines
         # in case of existing cache, fill_missing happens after concatenation
         ohlcv_df = ohlcv_to_dataframe(
@@ -3024,6 +3014,18 @@ class Exchange(LoggingMixin):
         )
         # keeping parsed dataframe in cache
         if cache:
+            # Remember when this pair was last queried
+            self._pairs_last_poll_time[(pair, timeframe, c_type)] = fetch_start_ms
+            # Taken from this response, before it is merged with the cached frame.
+            if not ohlcv_df.empty:
+                self._pairs_last_refresh_time[(pair, timeframe, c_type)] = dt_ts(
+                    ohlcv_df["date"].iloc[-1].to_pydatetime()
+                )
+            elif ticks:
+                # The response held nothing but a dropped candle - remember the candle before
+                # it, so the pair is re-checked at candle cadence instead of on every iteration.
+                last_refresh = ticks[-1][0] - timeframe_to_msecs(timeframe)
+                self._pairs_last_refresh_time[(pair, timeframe, c_type)] = last_refresh
             if (pair, timeframe, c_type) in self._klines:
                 old = self._klines[(pair, timeframe, c_type)]
                 # Reassign so we return the updated, combined df
@@ -3779,12 +3781,29 @@ class Exchange(LoggingMixin):
         if type(since) is datetime:
             since = dt_ts(since)
 
+        limit = self._ft_has["funding_history_limit"]
         try:
-            funding_history = self._api.fetch_funding_history(symbol=pair, since=since)
-            self._log_exchange_response(
-                "funding_history", funding_history, add_info=f"pair: {pair}, since: {since}"
-            )
-            return sum(fee["amount"] for fee in funding_history)
+            # One funding payment per timestamp - not all exchanges provide an id.
+            funding_history: dict[int, float] = {}
+            while True:
+                page = self._api.fetch_funding_history(symbol=pair, since=since, limit=limit)
+                self._log_exchange_response(
+                    "funding_history", page, add_info=f"pair: {pair}, since: {since}"
+                )
+                new_entries = {
+                    fee["timestamp"]: fee["amount"]
+                    for fee in page
+                    if fee["timestamp"] not in funding_history
+                }
+                if not new_entries:
+                    # Empty page, or the exchange ignored since and repeated known entries
+                    break
+                funding_history.update(new_entries)
+                if limit and len(page) < limit:
+                    break
+                # Responses are capped in size - continue after the newest entry received.
+                since = max(new_entries) + 1
+            return sum(funding_history.values())
         except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
