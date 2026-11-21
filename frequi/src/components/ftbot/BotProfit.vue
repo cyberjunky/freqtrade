@@ -161,29 +161,42 @@ const options = [
 
 <template>
   <div>
-    <div v-if="profitAll?.long && profitAll?.short" class="flex justify-between items-center">
-      <span>Profits for</span>
+    <div v-if="profitAll?.long && profitAll?.short" class="ft-bp-bar">
+      <span class="ft-hint">Statistics for</span>
       <SelectButton
         v-model="selectedOption"
         :options="options"
         option-label="text"
         option-value="value"
         :allow-empty="false"
+        aria-label="Trade direction"
         size="small"
       ></SelectButton>
-      <span>Trades</span>
+      <span class="ft-hint">trades</span>
     </div>
 
-    <DataTable class="text-start" small borderless :value="profitItems">
+    <DataTable size="small" :value="profitItems" scrollable>
       <Column field="metric" header="Metric"></Column>
-      <Column field="value" header="Value">
+      <Column field="value" header="Value" class="ft-num">
         <template #body="{ data }">
-          <DateTimeTZ v-if="data.isTs" :date="data.value" show-timezone />
-          <template v-else>
-            {{ data.value }}
-          </template>
+          <DateTimeTZ v-if="data.isTs && data.value" :date="data.value" show-timezone />
+          <template v-else-if="data.isTs">N/A</template>
+          <span v-else class="ft-bp-val">{{ data.value }}</span>
         </template>
       </Column>
     </DataTable>
   </div>
 </template>
+
+<style scoped>
+.ft-bp-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ft-border);
+}
+.ft-bp-val {
+  white-space: normal;
+}
+</style>

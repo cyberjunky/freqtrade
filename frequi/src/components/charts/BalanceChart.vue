@@ -93,7 +93,7 @@ const balanceChartOptions = computed((): EChartsOption => {
     ref="balanceChart"
     :option="balanceChartOptions"
     :theme="settingsStore.chartTheme"
-    :style="{ height: width * 0.6 + 'px' }"
+    :style="{ height: Math.max(220, Math.min(340, width * 0.6)) + 'px' }"
     autoresize
   />
 </template>

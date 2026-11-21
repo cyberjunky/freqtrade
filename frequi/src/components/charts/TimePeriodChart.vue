@@ -72,7 +72,7 @@ const absoluteMax = computed(
 
 registerTransform(ftEchartsTransforms.multiple);
 
-const colorStops: LinearGradientObject = {
+const colorStops = computed<LinearGradientObject>(() => ({
   type: 'linear',
   x: 0,
   y: 0,
@@ -96,7 +96,7 @@ const colorStops: LinearGradientObject = {
       color: colorStore.colorLoss, // color at 100%
     },
   ],
-};
+}));
 const dailyChartOptions: ComputedRef<EChartsOption> = computed(() => {
   return {
     title: {
@@ -120,9 +120,7 @@ const dailyChartOptions: ComputedRef<EChartsOption> = computed(() => {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        label: {
-          backgroundColor: '#6a7985',
-        },
+        label: {},
       },
     },
     legend: {
@@ -130,10 +128,10 @@ const dailyChartOptions: ComputedRef<EChartsOption> = computed(() => {
         {
           name: CHART_PROFIT.value,
           lineStyle: {
-            color: colorStops,
+            color: colorStops.value,
           },
           itemStyle: {
-            color: colorStops,
+            color: colorStops.value,
           },
         },
         { name: CHART_TRADE_COUNT },
@@ -205,7 +203,7 @@ const dailyChartOptions: ComputedRef<EChartsOption> = computed(() => {
         type: 'bar',
         name: CHART_TRADE_COUNT,
         itemStyle: {
-          color: 'rgba(150,150,150,0.3)',
+          color: themeTokens.grid,
         },
         yAxisIndex: 1,
         datasetIndex: 1,
@@ -228,7 +226,7 @@ const dailyChartOptions: ComputedRef<EChartsOption> = computed(() => {
 
 <style lang="css" scoped>
 .echarts {
-  min-height: 240px;
+  min-height: 200px;
   height: 100%;
 }
 </style>

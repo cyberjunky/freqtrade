@@ -1,141 +1,769 @@
 @import 'tailwindcss';
+@import './tokens.css';
 
 @plugin 'tailwindcss-primeui';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+/* Map the design tokens into Tailwind so utilities use tokens, never literal colours. */
+@theme inline {
+  --font-sans: var(--ft-font-sans);
+  --font-mono: var(--ft-font-mono);
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
+  --color-page: var(--ft-page);
+  --color-panel: var(--ft-panel);
+  --color-fg: var(--ft-text);
+  --color-fg-2: var(--ft-text-2);
+  --color-muted: var(--ft-muted);
+  --color-line: var(--ft-border);
+  --color-grid: var(--ft-grid);
+  --color-hover: var(--ft-hover);
+  --color-selected: var(--ft-selected);
+  --color-ok: var(--ft-success);
+  --color-warn: var(--ft-warning);
+  --color-danger: var(--ft-danger);
+  --color-pos: var(--ft-pos);
+  --color-neg: var(--ft-neg);
+  --color-profit: var(--ft-pos);
+  --color-loss: var(--ft-neg);
+  --color-idle: var(--ft-idle);
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+}
+
 @layer base {
+  /* Borders default to the divider token. */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
+    border-color: var(--ft-border);
   }
 }
 
+html {
+  font-size: var(--ft-font-size);
+}
 
+body {
+  margin: 0;
+  background: var(--ft-page);
+  color: var(--ft-text);
+  font-family: var(--ft-font-sans);
+  font-size: var(--ft-font-size);
+  line-height: var(--ft-line-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'tnum' 1;
+}
 
+a {
+  color: var(--ft-primary);
+}
 
-@layer frequi {
-  /* Customization for freqUI components */
-  :root {
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--ft-primary);
+  outline-offset: 3px;
+}
+input:focus-visible,
+textarea:focus-visible,
+.p-inputtext:focus-visible {
+  outline-offset: 0;
+}
 
-    --p-primary-50: #DBFAFF;
-    --p-primary-100: #B8F4FF;
-    --p-primary-200: #75EAFF;
-    --p-primary-300: #2EE0FF;
-    --p-primary-400: #00C3E6;
-    --p-primary-500: #0089A1;
-    --p-primary-600: #006C80;
-    --p-primary-700: #005261;
-    --p-primary-800: #003842;
-    --p-primary-900: #001A1F;
-    --p-primary-950: #000D0F;
+::selection {
+  background: var(--ft-selected);
+}
 
-    --p-primary-color: var(--p-primary-600);
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ft-idle) transparent;
+}
 
-    /* Reduce size of listboxes*/
-    --p-listbox-option-padding: 0.15rem 0.75rem;
+details > summary {
+  cursor: pointer;
+  color: var(--ft-text-2);
+  padding: 4px 0;
+}
 
-    /* Secondary Button */
-    --p-button-secondary-background: var(--p-surface-200);
-    --p-button-secondary-hover-background: var(--p-surface-300);
+/* ------------------------------------------------------------------ */
+/* Primitives                                                          */
+/* ------------------------------------------------------------------ */
 
-    /* default profit loss colors, could be overwritten by custom style */
-    --color-profit: #12bb7b;
-    --color-loss: #ef5350;
+.ft-mono,
+.ft-num {
+  font-family: var(--ft-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.ft-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.ft-pos {
+  color: var(--ft-pos);
+}
+.ft-neg {
+  color: var(--ft-neg);
+}
+.ft-dim {
+  color: var(--ft-muted);
+}
 
-    --p-tabs-tabpanel-padding: unset;
+.ft-container {
+  width: 100%;
+  max-width: var(--ft-container);
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+}
 
-    --p-togglebutton-content-checked-background: var(--p-primary-500);
-    --p-togglebutton-sm-padding: 0;
+.ft-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ft-gap);
+}
 
+.ft-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--ft-gap);
+}
+.ft-grid-2-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--ft-gap);
+}
 
-    --p-selectbutton-border-radius: var(--radius-sm);
-    --p-togglebutton-content-border-radius: 0px;
-    /* --p-button-link-color: var(--p-surface-200); */
-    /* --p-togglebutton-content-border-radius: var(--radius-sm); */
-    /* --p-button-sm-padding-y: 0.1rem;
-    --p-button-sm-padding-x: 0.4rem; */
+.ft-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ft-text-2);
+  margin: 0;
+}
 
-    /* --p-datatable-row-selected-background: var(--p-highlight-background); */
-    /* --p-datatable-row-selected-color: var(--p-primary-contrast); */
+.ft-page-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.2;
+}
 
-      /* --p-primary-color: var(--p-primary-500); */
-  }
+.ft-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ft-text-2);
+  margin-bottom: 4px;
+}
 
-  .ft-dark-theme {
-      --p-content-background: var(--p-surface-950);
-      --p-menu-background: var(--p-surface-900);
+.ft-hint {
+  font-size: 12px;
+  color: var(--ft-muted);
+}
 
-      --p-primary-contrast-color: var(--p-text-200);
-      --p-button-secondary-background: var(--p-surface-700);
-      --p-button-secondary-hover-background: var(--p-surface-600);
-  }
+/* Key / value rows */
+.ft-kv {
+  display: grid;
+  grid-template-columns: minmax(120px, 38%) minmax(0, 1fr);
+  gap: 0;
+  margin: 0;
+}
+.ft-kv > dt,
+.ft-kv > dd {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ft-border);
+  margin: 0;
+  min-width: 0;
+}
+.ft-kv > dt {
+  color: var(--ft-text-2);
+  padding-right: 12px;
+}
+.ft-kv > dd {
+  font-family: var(--ft-font-mono);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.ft-kv > dt:last-of-type,
+.ft-kv > dd:last-of-type {
+  border-bottom: 0;
+}
 
-  .p-button-icon-only.p-button-sm {
-    --p-button-sm-icon-only-height: 2.25rem;
-    /* height: var(--p-button-sm-icon-only-width); */
-    padding : 0.1rem 0.4rem 0.1rem 0.4rem;
-    /* padding: unset; */
-  }
-  .p-button-icon-only {
-    /* padding : 0.1rem 0.4rem 0.1rem 0.4rem; */
-    padding: unset;
-    aspect-ratio: 1 / 1;
-  }
+/* Plain tables (non PrimeVue) */
+.ft-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.ft-table th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ft-text-2);
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ft-border);
+  white-space: nowrap;
+}
+.ft-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ft-border);
+}
+.ft-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ft-table tbody tr:hover {
+  background: var(--ft-hover);
+}
+.ft-table th.ft-num {
+  text-align: right;
+  font-family: var(--ft-font-sans);
+}
 
-  .p-selectbutton {
-    border-color: var(--p-primary-500);
-    border: 1px solid var(--p-primary-500);
-    &>.p-togglebutton {
-      border: none;
+.ft-scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+}
 
-    }
-  }
+/* Small chips for pair lists */
+.ft-chiplist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ft-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ft-font-mono);
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-control);
+  background: var(--ft-page);
+  color: var(--ft-text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.ft-chip {
+  cursor: pointer;
+}
+button.ft-chip:hover {
+  background: var(--ft-hover);
+}
+.ft-chip.is-selected {
+  background: var(--ft-danger-bg);
+  border-color: var(--ft-danger);
+  color: var(--ft-danger);
+}
 
+/* Segmented tabs (FtSegmented + top bar navigation) */
+.ft-seg {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--ft-page);
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-panel);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ft-seg::-webkit-scrollbar {
+  display: none;
+}
+.ft-seg-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ft-h-tab);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--ft-radius-control);
+  background: transparent;
+  color: var(--ft-text-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ft-seg.is-small .ft-seg-tab {
+  height: 22px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+.ft-seg-tab:hover:not(.is-active):not(:disabled) {
+  background: var(--ft-hover);
+  color: var(--ft-text);
+}
+.ft-seg-tab.is-active {
+  background: var(--ft-primary);
+  color: var(--ft-on-primary);
+}
+.ft-seg-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ft-seg-tab:focus-visible {
+  outline-offset: -2px;
+  outline-color: var(--ft-text);
+}
+
+/* ------------------------------------------------------------------ */
+/* PrimeVue component polish (dimensions the preset cannot express)    */
+/* ------------------------------------------------------------------ */
+
+.p-component,
+.p-inputtext,
+.p-button {
+  font-family: var(--ft-font-sans);
+}
+
+/* Buttons: default = panel bg + border, primary = solid, danger = outlined */
+.p-button {
+  min-height: var(--ft-h-control);
+  font-size: 12.5px;
+  box-shadow: none;
+  white-space: nowrap;
+}
+.p-button.p-button-sm {
+  min-height: var(--ft-h-control-sm);
+  font-size: 12px;
+}
+.p-button.p-button-lg {
+  min-height: var(--ft-h-control);
+  font-size: 12.5px;
+}
+.p-button-icon-only {
+  min-width: var(--ft-h-control);
+  padding-inline: 0;
+}
+.p-button-icon-only.p-button-sm {
+  min-width: var(--ft-h-control-sm);
+}
+.p-button.p-button-danger:not(.ft-danger-solid):not(.p-button-text):not(.p-button-link) {
+  background: transparent;
+  color: var(--ft-danger);
+  border-color: var(--ft-danger);
+}
+.p-button.p-button-danger:not(.ft-danger-solid):not(.p-button-text):not(:disabled):hover {
+  background: var(--ft-danger-bg);
+  color: var(--ft-danger);
+  border-color: var(--ft-danger);
+}
+.p-button.ft-danger-solid,
+.p-button.ft-danger-solid:not(:disabled):hover {
+  background: var(--ft-danger-solid);
+  border-color: var(--ft-danger-solid);
+  color: var(--ft-on-primary);
 }
 
 
-@layer primevue {
-    /* Base component style overrides */
-    :root {
-
-        --p-datatable-row-background: unset;
-    }
+/* Inputs */
+.p-inputtext,
+.p-select,
+.p-multiselect,
+.p-inputnumber-input,
+.p-textarea {
+  font-size: 12.5px;
+  box-shadow: none;
+}
+.p-inputtext:not(.p-textarea),
+.p-select,
+.p-multiselect {
+  min-height: var(--ft-h-control);
+}
+.p-inputtext.p-inputtext-sm:not(.p-textarea),
+.p-select.p-select-sm,
+.p-multiselect.p-multiselect-sm {
+  min-height: var(--ft-h-control-sm);
+}
+.p-select-label,
+.p-multiselect-label {
+  display: flex;
+  align-items: center;
+}
+.p-inputnumber {
+  min-width: 0;
+}
+.p-inputnumber-input {
+  font-family: var(--ft-font-mono);
+  min-width: 0;
+  width: 100%;
 }
 
+/* Data tables: row separators only, uppercase headers, hover, no zebra */
+.p-datatable {
+  font-size: 12.5px;
+}
+.p-datatable .p-datatable-thead > tr > th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ft-text-2);
+  background: var(--ft-panel);
+  padding: 6px 10px;
+  border-width: 0 0 1px 0;
+  border-color: var(--ft-border);
+  white-space: nowrap;
+}
+.p-datatable .p-datatable-column-title {
+  font-weight: 600;
+}
+.p-datatable .p-datatable-tbody > tr > td,
+.p-datatable .p-datatable-tfoot > tr > td {
+  padding: 6px 10px;
+  border-width: 0 0 1px 0;
+  border-color: var(--ft-border);
+}
+.p-datatable .p-datatable-tbody > tr {
+  background: transparent;
+  color: var(--ft-text);
+}
+.p-datatable .p-datatable-tbody > tr:not(.p-datatable-row-selected):hover {
+  background: var(--ft-hover);
+}
+.p-datatable .p-datatable-tbody > tr.p-datatable-row-selected {
+  background: var(--ft-selected);
+  color: var(--ft-text);
+}
+.p-datatable .p-datatable-tbody > tr:last-child > td {
+  border-bottom-width: 0;
+}
+.p-datatable .p-datatable-tfoot > tr > td {
+  border-width: 1px 0 0 0;
+  background: var(--ft-panel);
+  font-weight: 600;
+}
+.p-datatable th.ft-num .p-datatable-column-header-content {
+  justify-content: flex-end;
+}
+.p-datatable .p-datatable-paginator-bottom {
+  border-width: 1px 0 0 0;
+  border-color: var(--ft-border);
+}
+.p-datatable .p-datatable-empty-message > td {
+  color: var(--ft-muted);
+  text-align: center;
+  padding: 22px 10px;
+}
+.p-paginator {
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--ft-font-mono);
+}
+.p-paginator-page,
+.p-paginator-first,
+.p-paginator-prev,
+.p-paginator-next,
+.p-paginator-last {
+  min-width: 26px;
+  height: 26px;
+  border-radius: var(--ft-radius-control);
+}
 
+/* Tabs (legacy PrimeVue <Tabs>) rendered as a segmented track */
+.p-tabs .p-tablist {
+  background: transparent;
+}
+.p-tabs .p-tablist-content {
+  background: transparent;
+}
+.p-tabs .p-tablist-tab-list {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--ft-page);
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-panel);
+  padding: 2px;
+}
+.p-tabs .p-tab {
+  height: var(--ft-h-tab);
+  padding: 0 12px;
+  border: 0;
+  margin: 0;
+  border-radius: var(--ft-radius-control);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ft-text-2);
+  background: transparent;
+  white-space: nowrap;
+}
+.p-tabs .p-tab:not(.p-disabled):not(.p-tab-active):hover {
+  background: var(--ft-hover);
+  color: var(--ft-text);
+}
+.p-tabs .p-tab.p-tab-active {
+  background: var(--ft-primary);
+  color: var(--ft-on-primary);
+}
+.p-tabs .p-tablist-active-bar {
+  display: none;
+}
+.p-tabs .p-tabpanels {
+  background: transparent;
+  padding: 14px 0 0;
+  color: var(--ft-text);
+}
+
+/* SelectButton = segmented control */
+.p-selectbutton {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  background: var(--ft-page);
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-panel);
+  padding: 2px;
+}
+.p-selectbutton .p-togglebutton {
+  border: 0;
+  background: transparent;
+  color: var(--ft-text-2);
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--ft-radius-control);
+}
+.p-selectbutton .p-togglebutton::before {
+  display: none;
+}
+.p-selectbutton .p-togglebutton .p-togglebutton-content {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.p-selectbutton .p-togglebutton:not(.p-togglebutton-checked):not(.p-disabled):hover {
+  background: var(--ft-hover);
+  color: var(--ft-text);
+}
+.p-selectbutton .p-togglebutton.p-togglebutton-checked {
+  background: var(--ft-primary);
+  color: var(--ft-on-primary);
+}
+
+/* Dialogs, popovers, menus, tooltips: the only places with a shadow */
+.p-dialog {
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-panel);
+  box-shadow: var(--ft-shadow);
+  max-width: calc(100vw - 24px);
+}
+.p-dialog .p-dialog-header {
+  padding: 14px 18px 10px;
+}
+.p-dialog .p-dialog-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.p-dialog .p-dialog-content {
+  padding: 4px 18px 16px;
+}
+.p-dialog .p-dialog-footer {
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--ft-border);
+  gap: 8px;
+}
+.p-popover,
+.p-menu.p-menu-overlay,
+.p-select-overlay,
+.p-multiselect-overlay {
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-panel);
+  box-shadow: var(--ft-shadow);
+}
+.p-menu .p-menu-item-content {
+  border-radius: var(--ft-radius-control);
+}
+.p-menu .p-menu-item-link {
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+.p-menu .p-menu-submenu-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ft-muted);
+  padding: 6px 10px 2px;
+}
+
+/* Toasts: panel background + 3px status border on the left */
+.p-toast {
+  max-width: calc(100vw - 24px);
+}
+.p-toast .p-toast-message {
+  --ft-toast-accent: var(--ft-primary);
+  background: var(--ft-panel);
+  color: var(--ft-text);
+  border: 1px solid var(--ft-border);
+  border-left: 3px solid var(--ft-toast-accent);
+  border-radius: var(--ft-radius-control);
+  box-shadow: var(--ft-shadow);
+  backdrop-filter: none;
+}
+.p-toast .p-toast-message-success {
+  --ft-toast-accent: var(--ft-success);
+}
+.p-toast .p-toast-message-warn {
+  --ft-toast-accent: var(--ft-warning);
+}
+.p-toast .p-toast-message-error {
+  --ft-toast-accent: var(--ft-danger);
+}
+.p-toast .p-toast-message-content {
+  padding: 10px 12px;
+  gap: 10px;
+}
+.p-toast .p-toast-message-icon {
+  color: var(--ft-toast-accent);
+}
+.p-toast .p-toast-summary {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ft-text);
+}
+.p-toast .p-toast-detail {
+  font-size: 12.5px;
+  color: var(--ft-text-2);
+}
+.p-toast .p-toast-close-button {
+  color: var(--ft-muted);
+}
+
+/* Inline messages */
+.p-message {
+  border-radius: var(--ft-radius-control);
+  box-shadow: none;
+  outline: 0;
+  border: 1px solid var(--ft-border);
+  border-left: 3px solid var(--ft-primary);
+  background: var(--ft-panel);
+  color: var(--ft-text);
+}
+.p-message.p-message-warn {
+  border-left-color: var(--ft-warning);
+}
+.p-message.p-message-error {
+  border-left-color: var(--ft-danger);
+}
+.p-message.p-message-success {
+  border-left-color: var(--ft-success);
+}
+.p-message .p-message-content {
+  padding: 8px 12px;
+}
+.p-message .p-message-text {
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+/* Legacy PrimeVue <Panel> / <Card> follow the panel look */
+.p-panel,
+.p-card {
+  background: var(--ft-panel);
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-panel);
+  box-shadow: none;
+  color: var(--ft-text);
+}
+.p-panel .p-panel-header {
+  padding: 10px 18px;
+  min-height: 40px;
+}
+.p-panel .p-panel-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ft-text-2);
+}
+.p-panel .p-panel-content {
+  padding: 4px 18px 16px;
+}
+
+.p-divider.p-divider-horizontal {
+  margin: 12px 0;
+}
+.p-divider.p-divider-horizontal::before {
+  border-color: var(--ft-border);
+}
+
+.p-checkbox {
+  width: 16px;
+  height: 16px;
+}
+.p-checkbox .p-checkbox-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  box-shadow: none;
+}
+.p-progressbar {
+  height: 14px;
+  border-radius: var(--ft-radius-badge);
+  background: var(--ft-grid);
+}
+.p-progressbar .p-progressbar-label {
+  font-size: 10.5px;
+  font-family: var(--ft-font-mono);
+}
 
 body.ft-theme-transition,
 body.ft-theme-transition *,
-body.ft-theme-transition *:before,
-body.ft-theme-transition *:after {
-    transition:
-        background 750ms ease-in-out,
-        border-color 750ms ease-in-out,
-        background-color 750ms ease-in-out,
-    ;
-    transition-delay: 0 !important;
+body.ft-theme-transition *::before,
+body.ft-theme-transition *::after {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease !important;
 }
 
+/* ------------------------------------------------------------------ */
+/* Responsive                                                          */
+/* ------------------------------------------------------------------ */
 
-html {
-    /*  Set the default font size to 14px */
-    font-size: 14px;
+@media (max-width: 1000px) {
+  .ft-grid-2,
+  .ft-grid-2-wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.vue-grid-item {
-    /*  Fix white corners in vue-grid-item. */
-    background-color: unset !important;
+@media (max-width: 700px) {
+  .ft-container {
+    padding: 12px 12px 24px;
+  }
+  .ft-kv {
+    grid-template-columns: minmax(96px, 42%) minmax(0, 1fr);
+  }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

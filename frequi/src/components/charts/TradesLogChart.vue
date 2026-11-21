@@ -34,7 +34,6 @@ use([
 
 // Define Column labels here to avoid typos
 const CHART_PROFIT = 'Profit %';
-const CHART_COLOR = '#9be0a8';
 
 const props = withDefaults(
   defineProps<{
@@ -92,9 +91,7 @@ const chartOptions = computed((): EChartsOption => {
       },
       axisPointer: {
         type: 'line',
-        label: {
-          backgroundColor: '#6a7985',
-        },
+        label: {},
       },
     },
     xAxis: {
@@ -132,7 +129,7 @@ const chartOptions = computed((): EChartsOption => {
     ],
     visualMap: [
       {
-        show: true,
+        show: false,
         seriesIndex: 0,
         pieces: [
           {
@@ -153,12 +150,13 @@ const chartOptions = computed((): EChartsOption => {
         barCategoryGap: '0%',
         animation: false,
         label: {
-          show: true,
+          // Per-bar labels overlap as soon as a few trades are shown - the tooltip has the values.
+          show: false,
           position: 'top',
           rotate: 90,
           offset: [7.5, 7.5],
           formatter: '{@[1]} %',
-          color: settingsStore.chartTheme === 'dark' ? '#c2c2c2' : '#3c3c3c',
+          color: themeTokens['text-2'],
         },
         encode: {
           x: 0,
@@ -166,7 +164,7 @@ const chartOptions = computed((): EChartsOption => {
         },
 
         itemStyle: {
-          color: CHART_COLOR,
+          color: themeTokens['series-1'],
         },
       },
     ],

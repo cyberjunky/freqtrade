@@ -4,7 +4,6 @@ import type { ChartSliderPosition, StrategyBacktestResult, Trade } from '@/types
 const props = defineProps<{
   timeframe: string;
   strategy: string;
-  freqaiModel?: string;
   timerange: string;
   backtestResult: StrategyBacktestResult;
 }>();
@@ -25,7 +24,6 @@ function refreshOHLCV(pair: string, columns: string[]) {
     timeframe: props.timeframe,
     timerange: props.timerange,
     strategy: props.strategy,
-    freqaimodel: props.freqaiModel,
     columns: columns,
     margin_mode: props.backtestResult.margin_mode,
     trading_mode: props.backtestResult.trading_mode,
@@ -98,7 +96,6 @@ onMounted(() => {
         :trades="backtestResult.trades"
         class="flex-1 candle-chart-container px-0 h-full align-self-stretch min-w-0 overflow-y-auto"
         :slider-position="sliderPosition"
-        :freqai-model="freqaiModel"
         @refresh-data="refreshOHLCV"
       >
       </CandleChartContainer>
@@ -112,13 +109,9 @@ onMounted(() => {
         />
       </Transition>
     </div>
-    <DraggableContainer header="Single trades" class="row mt-2 w-full">
-      <TradeList
-        class="row trade-history mt-2 w-full"
-        :trades="backtestResult.trades"
-        :show-filter="true"
-      />
-    </DraggableContainer>
+    <FtPanel title="Single trades" flush class="mt-3">
+      <TradeList class="trade-history" :trades="backtestResult.trades" :show-filter="true" />
+    </FtPanel>
   </div>
 </template>
 

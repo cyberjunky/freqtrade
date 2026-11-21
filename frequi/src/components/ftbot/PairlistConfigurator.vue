@@ -78,27 +78,28 @@ if (pairlistStore.whitelist.length > 0) {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] px-3 mb-3 gap-3 w-full">
+  <div
+    class="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)_minmax(0,360px)] gap-[14px] w-full items-start"
+  >
     <ul
       ref="availablePairlistsEl"
-      class="divide-y border-x border-surface-500 rounded-sm border-y divide-solid divide-surface-500 min-w-72"
+      class="divide-y divide-solid divide-line border border-line rounded-md bg-panel min-w-0"
     >
       <li
         v-for="pairlist in availablePairlists"
         :key="pairlist.name"
         :class="{
-          'no-drag text-gray-500 hover:cursor-default':
+          'no-drag text-muted hover:cursor-default':
             pairlistStore.config.pairlists.length === 0 && !pairlist.is_pairlist_generator,
         }"
         class="pairlist flex text-start items-center py-2 px-3 hover:cursor-grab"
       >
         <div class="flex grow items-start flex-col">
-          <span class="font-bold">{{ pairlist.name }}</span>
-          <span class="text-sm text-muted-color">{{ pairlist.description }}</span>
+          <span class="font-semibold font-mono text-[12.5px]">{{ pairlist.name }}</span>
+          <span class="text-[12px] text-fg-2">{{ pairlist.description }}</span>
         </div>
         <Button
           severity="secondary"
-          class="dark:text-white"
           variant="text"
           :disabled="pairlistStore.config.pairlists.length === 0 && !pairlist.is_pairlist_generator"
           @click="pairlistStore.addToConfig(pairlist, pairlistStore.config.pairlists.length)"
@@ -111,13 +112,13 @@ if (pairlistStore.whitelist.length > 0) {
     </ul>
     <div class="flex flex-col">
       <PairlistConfigActions />
-      <div class="border rounded-sm border-surface-500 p-2 mb-2">
+      <div class="border border-line rounded-md bg-panel p-3 mb-2">
         <div class="flex items-center gap-2 my-2">
           <span class="col-auto">Stake currency: </span>
           <InputText v-model="pairlistStore.stakeCurrency" size="small" />
         </div>
 
-        <div class="mb-2 border rounded-sm border-surface-500 p-2 text-start">
+        <div>
           <BaseCheckbox v-model="pairlistStore.customExchange" class="mb-2">
             Custom Exchange
           </BaseCheckbox>
@@ -140,7 +141,7 @@ if (pairlistStore.whitelist.length > 0) {
       </Message>
       <div
         ref="pairlistConfigsEl"
-        class="flex flex-col grow relative border rounded-sm border-surface-500 p-1 gap-2 min-h-32"
+        class="flex flex-col grow relative border border-dashed border-line rounded-md p-2 gap-2 min-h-32"
         :class="{ empty: configEmpty }"
       >
         <PairlistConfigItem
@@ -152,7 +153,7 @@ if (pairlistStore.whitelist.length > 0) {
         />
       </div>
     </div>
-    <div class="flex flex-col w-full min-w-72">
+    <div class="flex flex-col w-full min-w-0">
       <SelectButton
         v-model="selectedView"
         class="mb-2"
@@ -188,7 +189,7 @@ if (pairlistStore.whitelist.length > 0) {
 @reference '../../styles/tailwind.css';
 
 .pairlist.dragging {
-  @apply border-white border bg-white dark:bg-black;
+  @apply border border-line bg-selected;
   /* border: 1px solid white; */
   /* border-radius: 0; */
 }
@@ -197,7 +198,9 @@ if (pairlistStore.whitelist.length > 0) {
   content: 'Drag pairlist here';
   position: absolute;
   align-self: center;
-  font-size: 1.1rem;
+  font-size: 11.5px;
+  letter-spacing: 0.07em;
+  color: var(--ft-muted);
   text-transform: uppercase;
   line-height: 0;
   top: 50%;

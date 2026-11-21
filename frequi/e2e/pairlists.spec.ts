@@ -60,7 +60,8 @@ test.describe('Pairlists', () => {
   test('Pairlists page', async ({ page }) => {
     page.goto('/');
 
-    const pairlistConfig = page.locator('a', { hasText: 'Pairlist Config' });
+    await page.getByRole('button', { name: 'Tools' }).click();
+    const pairlistConfig = page.getByRole('menuitem', { name: 'Pairlist config' });
 
     await Promise.all([pairlistConfig.click(), page.waitForResponse('**/pairlists/available*')]);
 

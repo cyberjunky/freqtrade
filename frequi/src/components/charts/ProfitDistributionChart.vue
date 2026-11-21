@@ -73,9 +73,7 @@ const chartOptions = computed((): EChartsOption => {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        label: {
-          backgroundColor: '#6a7985',
-        },
+        label: {},
       },
     },
     legend: {
@@ -131,12 +129,7 @@ const chartOptions = computed((): EChartsOption => {
     <div class="grow mb-2">
       <ECharts v-if="trades" :option="chartOptions" autoresize :theme="settingsStore.chartTheme" />
     </div>
-    <div
-      class="z-2 absolute fixed-top flex items-center gap-10 ms-2"
-      :class="{ 'mx-auto': showTitle }"
-      label-for="input-bins"
-      size="sm"
-    >
+    <div class="z-2 absolute top-1 left-3 flex items-center gap-2 text-[11.5px] text-fg-2">
       <label for="input-bins">Bins</label>
       <Select
         id="input-bins"
@@ -144,7 +137,6 @@ const chartOptions = computed((): EChartsOption => {
         size="small"
         option-label="text"
         option-value="value"
-        class="mt-1"
         :options="binOptions"
       ></Select>
     </div>

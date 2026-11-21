@@ -11,11 +11,6 @@ export const useBtStore = defineStore('btStore', {
       allowCache: true,
       enableProtections: false,
       stakeAmountUnlimited: false,
-      freqAI: {
-        enabled: false,
-        model: '',
-        identifier: '',
-      },
     };
   },
   getters: {

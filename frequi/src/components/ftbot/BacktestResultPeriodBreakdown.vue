@@ -34,31 +34,31 @@ const periodicBreakdownPeriod = ref<string>('month');
     option-label="text"
     option-value="value"
   ></SelectButton>
-  <DataTable size="small" stacked="sm" :value="periodicBreakdown[periodicBreakdownPeriod]">
+  <DataTable size="small" scrollable :value="periodicBreakdown[periodicBreakdownPeriod]">
     <Column field="date" header="Date"></Column>
-    <Column field="trades" header="Trades">
+    <Column class="ft-num" field="trades" header="Trades">
       <template #body="{ data, field }">
         {{ data[field as string] ?? 'N/A' }}
       </template>
     </Column>
-    <Column field="profit_abs" header="Total Profit" :body="formatPrice">
+    <Column class="ft-num" field="profit_abs" header="Total Profit" :body="formatPrice">
       <template #body="{ data, field }">
         {{ formatNumber(data[field as string], 2) }}
       </template>
     </Column>
-    <Column field="profit_factor" header="Profit Factor">
+    <Column class="ft-num" field="profit_factor" header="Profit Factor">
       <template #body="{ data, field }">
         {{ formatPrice(data[field as string], 2) }}
       </template>
     </Column>
-    <Column field="wins" header="Wins"></Column>
-    <Column field="draws" header="Draws"></Column>
-    <Column field="losses" header="Losses">
+    <Column class="ft-num" field="wins" header="Wins"></Column>
+    <Column class="ft-num" field="draws" header="Draws"></Column>
+    <Column class="ft-num" field="losses" header="Losses">
       <template #body="{ data }">
         {{ data.loses ?? data.losses ?? 'N/A' }}
       </template>
     </Column>
-    <Column field="wins" header="Win Rate">
+    <Column class="ft-num" field="wins" header="Win Rate">
       <template #body="{ data }">
         {{ formatPercent(data.wins / (data.wins + data.draws + (data.loses ?? data.losses)), 2) }}
       </template>

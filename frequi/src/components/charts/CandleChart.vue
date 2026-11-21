@@ -91,6 +91,35 @@ const shortexitSignalColor = '#faba25';
 const candleChart = useTemplateRef<InstanceType<typeof ECharts>>('candleChart');
 const chartOptions = shallowRef<EChartsOption>({});
 
+/**
+ * Data the tooltip formatter needs. The formatter is created once (in
+ * initializeChartOptions) while the series / dataset change with every
+ * updateChart() call - so they are handed over through this context.
+ */
+const tooltipCtx: {
+  series: unknown[];
+  dataset: unknown[][];
+  colOpen: number;
+  colHigh: number;
+  colLow: number;
+  colClose: number;
+  colEnterTag: number;
+  colExitTag: number;
+} = {
+  series: [],
+  dataset: [],
+  colOpen: -1,
+  colHigh: -1,
+  colLow: -1,
+  colClose: -1,
+  colEnterTag: -1,
+  colExitTag: -1,
+};
+
+type RichStyles = Record<string, Record<string, unknown>>;
+/** Tooltip text style including the `rich` styles used by the richText render mode. */
+type RichTooltipTextStyle = { color: string; rich: RichStyles };
+
 const strategy = computed(() => {
   return props.dataset ? props.dataset.strategy : '';
 });
@@ -582,17 +611,22 @@ function updateChart(initial = false) {
   // tooltip (which lists ALL series, every subplot) shows each value with the
   // colour of its chart line.
   if (Array.isArray(options.series)) {
-    const rich = ((options.tooltip as any)?.textStyle?.rich ?? {}) as Record<
-      string,
-      { color: string }
-    >;
+    const rich: RichStyles = {};
+
     options.series.forEach((s: any, i: number) => {
       const c = s?.itemStyle?.color ?? s?.lineStyle?.color ?? '#ffffff';
       const dotKey = `dot${i}`;
       s.__dotKey = dotKey;
       rich[dotKey] = { color: typeof c === 'string' ? c : '#ffffff' };
     });
+    // Register the dot styles on the tooltip (which lives in the base chart options).
+    Object.assign(tooltipTextStyle.rich, rich);
   }
+
+  // Hand the current data to the tooltip formatter.
+  tooltipCtx.series = Array.isArray(options.series) ? options.series : [];
+  tooltipCtx.dataset = dataset;
+  Object.assign(tooltipCtx, { colOpen, colHigh, colLow, colClose, colEnterTag, colExitTag });
 
   // Merge this into original data
   Object.assign(chartOptions.value, options);
@@ -603,6 +637,14 @@ function updateChart(initial = false) {
   });
 }
 
+const tooltipTextStyle: RichTooltipTextStyle = {
+  color: '#fff',
+  rich: {
+    hdr: { fontWeight: 'bold', padding: [0, 0, 4, 0] },
+    n: { width: 130, align: 'left' }, // name column (values align after it)
+    v: { align: 'left' },
+  },
+};
 function initializeChartOptions() {
   // Ensure we start empty.
   candleChart.value?.setOption({}, { notMerge: true });
@@ -641,6 +683,8 @@ function initializeChartOptions() {
       renderMode: 'richText',
       formatter: (params) => {
         const rows = Array.isArray(params) ? params : params ? [params] : [];
+        const { dataset, colOpen, colHigh, colLow, colClose, colEnterTag, colExitTag } = tooltipCtx;
+        const options = { series: tooltipCtx.series };
         let header = '';
         try {
           const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
@@ -743,14 +787,8 @@ function initializeChartOptions() {
       },
       backgroundColor: 'rgba(80,80,80,0.7)',
       borderWidth: 0,
-      textStyle: {
-        color: '#fff',
-        rich: {
-          hdr: { fontWeight: 'bold', padding: [0, 0, 4, 0] },
-          n: { width: 130, align: 'left' }, // name column (values align after it)
-          v: { align: 'left' },
-        },
-      },
+      textStyle: tooltipTextStyle,
+
       axisPointer: {
         type: 'cross',
         lineStyle: {

@@ -13,10 +13,6 @@ export interface BacktestPayload {
   dry_run_wallet?: number;
   enable_protections?: boolean;
   backtest_cache?: string;
-  freqaimodel?: string;
-  freqai?: {
-    identifier: string;
-  };
 }
 
 export interface PairResult {
@@ -126,8 +122,6 @@ export interface StrategyBacktestResult {
   timeframe_detail?: string;
   timerange: string;
   strategy_name: string;
-  freqaimodel?: string;
-  freqai_identifier?: string;
   enable_protections: boolean;
   stoploss: number;
   trailing_stop: boolean;

@@ -2,10 +2,13 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 
 import App from './App.vue';
-import { VueDraggableGrid } from './plugins/vue-grid-layout';
 import router from './router';
 
 import { PrimeVue, FtTheme, ToastService } from './plugins/primevue';
+import { registerFtEchartsThemes } from './plugins/echartsTheme';
+
+// Styles are loaded (imported by plugins/primevue) - build the chart themes from the tokens.
+registerFtEchartsThemes();
 
 const myApp = createApp(App);
 
@@ -28,7 +31,5 @@ myApp.use(PrimeVue, {
 myApp.use(ToastService);
 
 myApp.use(router);
-myApp.use(VueDraggableGrid);
 
-// Vue.config.productionTip = false;
 myApp.mount('#app');

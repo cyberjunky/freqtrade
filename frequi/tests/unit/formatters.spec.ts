@@ -58,3 +58,38 @@ describe('formatters.ts', () => {
     expect(formatDecimal(-1051230.5123512)).toEqual('-1051230.51');
   });
 });
+
+import {
+  formatAge,
+  formatSigned,
+  formatSignedPercent,
+  profitClass,
+  signOf,
+} from '@/utils/formatters/numberformat';
+
+describe('signed formatters', () => {
+  it('always adds a sign to profit and loss', () => {
+    expect(signOf(1)).toEqual('+');
+    expect(signOf(-1)).toEqual('');
+    expect(signOf(0)).toEqual('');
+    expect(formatSigned(1.5, 2)).toEqual('+1.5');
+    expect(formatSigned(-1.5, 2)).toEqual('-1.5');
+    expect(formatSigned(0, 2)).toEqual('0');
+    expect(formatSigned(undefined)).toEqual('N/A');
+    expect(formatSignedPercent(0.0512)).toEqual('+5.12%');
+    expect(formatSignedPercent(-0.1)).toEqual('-10.00%');
+    expect(formatSignedPercent(null)).toEqual('N/A');
+  });
+  it('maps profit to a css class', () => {
+    expect(profitClass(1)).toEqual('ft-pos');
+    expect(profitClass(-1)).toEqual('ft-neg');
+    expect(profitClass(0)).toEqual('ft-dim');
+    expect(profitClass(undefined)).toEqual('ft-dim');
+  });
+  it('formats ages', () => {
+    expect(formatAge(12_000)).toEqual('12s');
+    expect(formatAge(4 * 60_000)).toEqual('4m');
+    expect(formatAge(3 * 3_600_000)).toEqual('3h');
+    expect(formatAge(72 * 3_600_000)).toEqual('3d');
+  });
+});

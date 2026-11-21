@@ -67,9 +67,9 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="flex justify-content-center">
+    <div class="flex flex-wrap gap-3">
       <div>
-        <label for="dateFrom">Start Date</label>
+        <label for="dateFrom" class="ft-label">Start date</label>
         <VueDatePicker
           id="dateFrom"
           v-model="dateFrom"
@@ -77,18 +77,17 @@ onMounted(() => {
           :max-date="now"
           model-type="yyyy-MM-dd"
           :formats="{ input: 'yyyy-MM-dd', preview: 'yyyy-MM-dd' }"
-          class="mt-1"
           text-input
           auto-apply
           :time-config="{ enableTimePicker: false }"
         ></VueDatePicker>
       </div>
-      <div class="ms-2">
-        <label for="dateTo">End Date</label>
+      <div>
+        <label for="dateTo" class="ft-label">End date</label>
         <VueDatePicker
+          id="dateTo"
           v-model="dateTo"
           :dark="settingsStore.isDarkTheme"
-          class="mt-1"
           :max-date="tomorrow"
           model-type="yyyy-MM-dd"
           :formats="{ input: 'yyyy-MM-dd', preview: 'yyyy-MM-dd' }"
@@ -99,8 +98,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <label class="mt-1 text-start">
-      Timerange: <b>{{ timeRange }}</b>
+    <label class="ft-hint block mt-1">
+      Timerange: <b class="ft-mono">{{ timeRange || 'not set' }}</b>
     </label>
   </div>
 </template>

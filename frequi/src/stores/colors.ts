@@ -5,40 +5,38 @@ export enum ColorPreferences {
   RED_UP = 'redUp',
 }
 
-export const useColorStore = defineStore('colorStore', {
-  // other options...
-  state: () => {
-    return {
-      colorPreference: ColorPreferences.GREEN_UP,
-      colorUp: '#26A69A',
-      colorDown: '#EF5350',
-      colorProfit: '#12bb7b',
-      colorLoss: '#ef5350',
-    };
+/**
+ * Chart colours. The values come from the design tokens (theme aware),
+ * only the up/down preference is a user setting.
+ */
+export const useColorStore = defineStore(
+  'colorStore',
+  () => {
+    const colorPreference = ref<ColorPreferences>(ColorPreferences.GREEN_UP);
+
+    const colorProfit = computed(() => themeTokens.pos);
+    const colorLoss = computed(() => themeTokens.neg);
+    const colorUp = computed(() =>
+      colorPreference.value === ColorPreferences.GREEN_UP ? themeTokens.pos : themeTokens.neg,
+    );
+    const colorDown = computed(() =>
+      colorPreference.value === ColorPreferences.GREEN_UP ? themeTokens.neg : themeTokens.pos,
+    );
+
+    /** Kept for API compatibility - colours are derived reactively now. */
+    function updateProfitLossColor() {
+      // no-op
+    }
+
+    return { colorPreference, colorProfit, colorLoss, colorUp, colorDown, updateProfitLossColor };
   },
-  getters: {
-    cssVars(state) {
-      return {
-        '--color-profit': state.colorProfit,
-        '--color-loss': state.colorLoss,
-      };
+  {
+    persist: {
+      key: STORE_UI_COLORS,
+      pick: ['colorPreference'],
     },
   },
-  actions: {
-    updateProfitLossColor() {
-      const [colorUp, colorDown] =
-        this.colorPreference === ColorPreferences.GREEN_UP
-          ? ['#26A69A', '#ef5350']
-          : ['#ef5350', '#26A69A'];
-      this.colorUp = colorUp;
-      this.colorDown = colorDown;
-    },
-  },
-  persist: {
-    key: STORE_UI_COLORS,
-    pick: ['colorPreference'],
-  },
-});
+);
 
 if (import.meta.hot) {
   import.meta.hot.accept(acceptHMRUpdate(useColorStore, import.meta.hot));

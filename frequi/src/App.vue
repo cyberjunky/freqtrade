@@ -1,37 +1,37 @@
 <script setup lang="ts">
 const settingsStore = useSettingsStore();
-const colorStore = useColorStore();
-onMounted(() => {
-  setTimezone(settingsStore.timezone);
-  colorStore.updateProfitLossColor();
-});
+
+initTheme();
+
+setTimezone(settingsStore.timezone);
 watch(
   () => settingsStore.timezone,
-  (tz) => {
-    console.log('timezone changed', tz);
-    setTimezone(tz);
-  },
+  (tz) => setTimezone(tz),
 );
 </script>
 
 <template>
-  <div id="app" class="flex flex-col h-dvh" :style="colorStore.cssVars">
-    <NavBar />
-    <Toast />
-    <BodyLayout class="grow overflow-auto" />
-    <NavFooter />
+  <div class="ft-app">
+    <TopBar />
+    <Toast position="top-right" />
+    <main class="ft-main">
+      <RouterView />
+    </main>
+    <StatusBar />
   </div>
 </template>
 
 <style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
+.ft-app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-width: 0;
 }
-
-/* * {
-  outline: 1px solid #f00 !important;
-} */
+.ft-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 </style>

@@ -2,145 +2,114 @@ import { test, expect } from '@playwright/test';
 
 import { setLoginInfo, defaultMocks, tradeMocks } from './helpers';
 
-test.describe('Trade', () => {
+test.describe('Bot page', () => {
   test.beforeEach(async ({ page }) => {
     await defaultMocks(page);
     await setLoginInfo(page);
 
     await tradeMocks(page);
   });
-  test('Trade page', async ({ page }) => {
+  test('Bot page sections and controls', async ({ page }) => {
     await Promise.all([
+      // legacy path - forwards to the bot summary
       page.goto('/trade'),
-      // Wait for network requests
-      //  page.waitForResponse('**/ping'),
       page.waitForResponse('**/status'),
       page.waitForResponse('**/profit'),
       page.waitForResponse('**/balance'),
-      //  page.waitForResponse('**/trades'),
       page.waitForResponse('**/whitelist'),
       page.waitForResponse('**/blacklist'),
       page.waitForResponse('**/locks'),
     ]);
+    await expect(page).toHaveURL(/\/bot\/ftbot\.0\/summary/);
+    const panel = (title: string) => page.locator('.ft-panel-title', { hasText: title });
+    const section = (name: string) =>
+      page.getByRole('tablist', { name: 'Bot sections' }).getByRole('tab', { name });
 
-    // // Check visibility of elements
-    await expect(page.locator('.drag-header', { hasText: 'Multi Pane' })).toBeInViewport();
-    await expect(page.locator('.drag-header', { hasText: 'Chart' })).toBeInViewport();
-    // Pairlist elements
+    // Header: name, state and mode as text
+    await expect(page.getByRole('heading', { name: 'TestBot' })).toBeInViewport();
+    await expect(page.locator('.ft-bothead')).toContainText('Running');
+    await expect(page.locator('.ft-bothead')).toContainText('DRY-RUN');
 
+    // Summary
+    await expect(panel('Cumulative profit')).toBeInViewport();
+    await expect(panel('Open trades')).toBeVisible();
+
+    // Chart section shows the pairs of the whitelist
+    await section('Chart').click();
     await expect(page.getByRole('listitem', { name: 'BTC/USDT' })).toBeInViewport();
     await expect(page.getByRole('listitem', { name: 'ETH/USDT' })).toBeInViewport();
 
-    // // Click on Performance button and wait for response
+    // Performance
+    await Promise.all([page.waitForResponse('**/performance'), section('Performance').click()]);
+    // Per-pair table comes first; entry tags / exit reasons tables share the column.
+    await expect(page.locator('th:has-text("Profit USDT")').first()).toBeInViewport();
+    const performancePair = page.locator('td:has-text("XRP/USDT")');
+    await expect(performancePair).toBeInViewport();
 
-    const performanceButton = page.locator('button[role="tab"] div[title="Performance"]');
-    await expect(performanceButton).toBeVisible();
-    await Promise.all([page.waitForResponse('**/performance'), performanceButton.click()]);
-
-    // // Check visibility of Profit USDT
-    await expect(page.locator('th:has-text("Profit USDT")')).toBeInViewport();
-
-    // // Test messageBox behavior
-
+    // Confirmation before stopping the bot
     const dialogModal = page.getByRole('dialog');
     const modalCancelButton = dialogModal.getByRole('button', { name: 'Cancel' });
 
     await expect(dialogModal).not.toBeVisible();
-    await expect(dialogModal).not.toBeInViewport();
-
     await expect(modalCancelButton).not.toBeVisible();
 
-    await page.getByRole('button', { name: 'Stop Trading - Also stops' }).click();
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
 
-    // Modal open
     await expect(dialogModal).toBeVisible();
     await expect(dialogModal).toBeInViewport();
+    await expect(dialogModal.getByRole('button', { name: 'Stop bot' })).toBeVisible();
     await expect(modalCancelButton).toBeInViewport();
-
-    // // Close modal
     await modalCancelButton.click();
-
-    // // Modal closed
     await expect(modalCancelButton).not.toBeVisible();
-    await expect(modalCancelButton).not.toBeInViewport();
 
-    // // Click on General tab
-    const performancePair = page.locator('td:has-text("XRP/USDT")');
-    await expect(performancePair).toBeInViewport();
-    await page.locator('button[role="tab"] div[title="General"]').click();
-
-    // // Check visibility of elements
+    // Trades section
+    await section('Trades').click();
     await expect(performancePair).not.toBeInViewport();
-    const openTrades = page.locator('.drag-header:has-text("Open Trades")');
-    openTrades.scrollIntoViewIfNeeded();
-    await expect(openTrades).toBeInViewport();
-    const closedTrades = page.locator('.drag-header:has-text("Closed Trades")');
-    closedTrades.scrollIntoViewIfNeeded();
-    await expect(closedTrades).toBeInViewport();
+    await expect(panel('Closed trades')).toBeInViewport();
     await expect(page.getByRole('cell', { name: 'TRX/USDT' })).toBeInViewport();
-    await expect(page.locator('td:has-text("8070.5")')).toBeInViewport();
+    // Amounts follow the system number format ("8070.5" or "8070,5").
+    await expect(page.getByRole('cell', { name: /^8070[.,]5$/ })).toBeInViewport();
 
-    // Scroll to top
-    const multiPane = page.locator('.drag-header', { hasText: 'Multi Pane' });
-    await expect(multiPane).toBeVisible();
-    await multiPane.scrollIntoViewIfNeeded();
-    await expect(multiPane).toBeInViewport();
+    // Search closed trades
+    await page.getByRole('textbox', { name: 'Search trades' }).fill('TRX');
+    await expect(page.getByRole('cell', { name: 'TRX/USDT' })).toBeInViewport();
+    await expect(page.locator('.trade-history td:has-text("BTC/USDT")')).toHaveCount(0);
+    await page.getByRole('textbox', { name: 'Search trades' }).fill('');
 
-    // // Click on Reload Config button
-    await page.getByRole('button', { name: 'Reload Config' }).click();
-    // await page.locator('button[title*="Reload Config "]').click();
+    // Trade detail opens on row click
+    await page.getByRole('cell', { name: 'TRX/USDT' }).click();
+    await expect(page.locator('.ft-panel-title', { hasText: 'Trade #' })).toBeVisible();
+
+    // Reload config asks for confirmation, then reports the result
+    await page.getByRole('button', { name: 'Reload config' }).click();
     await expect(dialogModal).toBeVisible();
     await expect(dialogModal).toBeInViewport();
 
-    const modalOkButton = dialogModal.getByRole('button', { name: 'Ok' });
+    const modalOkButton = dialogModal.getByRole('button', { name: 'Reload config' });
     await expect(modalOkButton).toBeVisible();
     await modalOkButton.click();
 
     await expect(page.getByText('Config reloaded successfully.')).toBeInViewport();
   });
-  test('Trade page - drag and drop', async ({ page }) => {
-    await Promise.all([
-      page.goto('/trade'),
-      // Wait for network requests
-      //  page.waitForResponse('**/ping'),
-      page.waitForResponse('**/status'),
-      page.waitForResponse('**/profit'),
-      page.waitForResponse('**/balance'),
-      //  page.waitForResponse('**/trades'),
-      page.waitForResponse('**/whitelist'),
-      page.waitForResponse('**/blacklist'),
-      page.waitForResponse('**/locks'),
-    ]);
-    // Wait for dynamic layout to settle
-    await page.waitForTimeout(1000);
-    const multiPane = await page.locator('.drag-header', { hasText: 'Multi Pane' });
 
-    const multiPanebb = await multiPane.boundingBox();
+  test('Bot section - status, pairlist and log', async ({ page }) => {
+    await page.goto('/pairlist');
+    await expect(page).toHaveURL(/\/bot\/ftbot\.0\/bot/);
+    const panel = (title: string) => page.locator('.ft-panel-title', { hasText: title });
+    await expect(panel('Status and config')).toBeVisible();
+    await expect(panel('Trading rules')).toBeVisible();
+    await expect(panel('Pair locks')).toBeVisible();
+    await expect(panel('Pairlist')).toBeVisible();
+    await expect(page.getByRole('listitem', { name: 'BTC/USDT' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add pair' })).toBeVisible();
+  });
 
-    await page.getByRole('button', { name: 'FT' }).click();
-    await page.getByText('Lock dynamic Layout').click();
-
-    const chartHeader = await page.locator('.drag-header:has-text("Chart")');
-    // Click outside of popup to ensure it's closed
-    // await chartHeader.click();
-    await expect(multiPane).toBeInViewport();
-    await expect(chartHeader).toBeInViewport();
-
-    // Test drag and drop functionality
-    const chartHeaderbb = await chartHeader.boundingBox();
-    if (chartHeaderbb) {
-      await chartHeader.hover();
-      await page.mouse.down();
-
-      await page.mouse.move(chartHeaderbb?.x + chartHeaderbb.width / 2, chartHeaderbb?.y + 200);
-      await page.mouse.up();
-      await expect(multiPane).toBeInViewport();
-      // Multipane wasn't moved.
-      await expect(multiPanebb).toEqual(await multiPane.boundingBox());
-
-      await expect(chartHeader).toBeInViewport();
-      // ChartHeader was moved down
-      await expect(chartHeaderbb).not.toEqual(await chartHeader.boundingBox());
-    }
+  test('Legacy paths forward to bot sections', async ({ page }) => {
+    await page.goto('/balance');
+    await expect(page).toHaveURL(/\/bot\/ftbot\.0\/balance/);
+    await page.goto('/trade_history');
+    await expect(page).toHaveURL(/\/bot\/ftbot\.0\/trades/);
+    await page.goto('/open_trades');
+    await expect(page).toHaveURL(/\/bot\/ftbot\.0\/summary/);
   });
 });

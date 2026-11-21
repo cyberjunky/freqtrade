@@ -4,9 +4,12 @@ import type { AuthStorageWithBotId } from '@/types';
 withDefaults(
   defineProps<{
     loginText?: string;
+    /** Render only the dialog - it is opened through `openLoginModal()` */
+    hideButton?: boolean;
   }>(),
   {
     loginText: 'Login',
+    hideButton: false,
   },
 );
 const loginViewOpen = ref(false);
@@ -29,22 +32,20 @@ defineExpose({
 </script>
 
 <template>
-  <div>
-    <Button severity="secondary" @click="openLoginModal()"
-      ><i-mdi-login class="me-1" />{{ loginText }}</Button
+  <div :class="{ contents: hideButton }">
+    <Button v-if="!hideButton" severity="primary" @click="openLoginModal()"
+      ><i-mdi-login aria-hidden="true" />{{ loginText }}</Button
     >
     <Dialog
       id="modal-prevent-closing"
       v-model:visible="loginViewOpen"
-      header="Login to your bot"
+      :header="loginInfo ? 'Log in again' : 'Login to your bot'"
+      modal
+      :draggable="false"
       :dismissable-mask="true"
+      :style="{ width: '440px' }"
     >
-      <BotLogin
-        class="w-[1000px] max-w-[500px]"
-        in-modal
-        :existing-auth="loginInfo"
-        @login-result="handleLoginResult"
-      />
+      <BotLogin in-modal :existing-auth="loginInfo" @login-result="handleLoginResult" />
     </Dialog>
   </div>
 </template>

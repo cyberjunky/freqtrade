@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { FtWsMessageTypes } from '@/types/wsMessageTypes';
+import type { SegmentedItem } from '@/components/ui/FtSegmented.vue';
+import type { ThemeMode } from '@/composables/theme';
 
 const settingsStore = useSettingsStore();
 const colorStore = useColorStore();
-const layoutStore = useLayoutStore();
+const botStore = useBotStore();
+const { mode: themeMode } = useThemeMode();
+
+const themeItems: SegmentedItem<ThemeMode>[] = THEME_MODES.map((m) => ({
+  value: m.value,
+  label: m.label,
+}));
 
 const timezoneOptions = ['UTC', Intl.DateTimeFormat().resolvedOptions().timeZone];
 const openTradesOptions = [
@@ -12,123 +20,133 @@ const openTradesOptions = [
   { value: OpenTradeVizOptions.noOpenTrades, text: "Don't show open trades in header" },
 ];
 const colorPreferenceOptions = [
-  { value: ColorPreferences.GREEN_UP, text: 'Green Up/Red Down' },
-  { value: ColorPreferences.RED_UP, text: 'Green Down/Red Up' },
+  { value: ColorPreferences.GREEN_UP, text: 'Green up / red down' },
+  { value: ColorPreferences.RED_UP, text: 'Green down / red up' },
 ];
-
-const resetDynamicLayout = () => {
-  layoutStore.resetTradingLayout();
-  layoutStore.resetDashboardLayout();
-  showAlert('Layouts have been reset.');
-};
+const labelSideItems: SegmentedItem<'left' | 'right'>[] = [
+  { value: 'left', label: 'Left' },
+  { value: 'right', label: 'Right' },
+];
 </script>
 
 <template>
-  <Card class="mx-auto mt-3 p-4 max-w-4xl">
-    <template #title>FreqUI Settings</template>
-    <template #content>
-      <div class="flex flex-col gap-4 text-start dark:text-surface-300">
-        <p class="text-left">UI Version: {{ settingsStore.uiVersion }}</p>
+  <div class="ft-container ft-stack ft-settings">
+    <div>
+      <h1 class="ft-page-title">FreqUI Settings</h1>
+      <p class="ft-hint ft-mono">UI version {{ settingsStore.uiVersion }}</p>
+    </div>
 
-        <div class="border border-surface-400 rounded-sm p-4 space-y-4">
-          <h4 class="text-xl font-semibold">UI settings</h4>
+    <FtPanel title="Bots">
+      <p class="ft-hint mb-3">
+        Bots connected in this browser. Drag to change the order of the tabs, rename, re-login or
+        remove a bot.
+      </p>
+      <BotList />
+    </FtPanel>
 
-          <BaseCheckbox v-model="layoutStore.layoutLocked" class="space-y-1">
-            Lock dynamic layouts
-            <template #hint>
-              Lock dynamic layouts, so they cannot move anymore. Can also be set from the navbar at
-              the top.
-            </template>
-          </BaseCheckbox>
-
-          <div class="flex flex-row items-center gap-2 space-y-2">
-            <Button severity="secondary" size="small" class="mb-0" @click="resetDynamicLayout"
-              >Reset layout</Button
-            >
-            <small class="block text-surface-600 dark:text-surface-400"
-              >Reset dynamic layouts to how they were.</small
-            >
+    <div class="ft-grid-2">
+      <FtPanel title="Interface">
+        <div class="ft-form">
+          <div>
+            <span class="ft-label">Theme</span>
+            <FtSegmented v-model="themeMode" :items="themeItems" label="Theme" />
+            <small class="ft-hint block mt-1">Auto follows your operating system setting.</small>
           </div>
 
-          <Divider />
-
-          <div class="space-y-1">
-            <label class="block text-sm">Show open trades in header</label>
+          <div>
+            <label class="ft-label" for="open-trades-select">Show open trades in header</label>
             <Select
               v-model="settingsStore.openTradesInTitle"
+              label-id="open-trades-select"
               :options="openTradesOptions"
               option-label="text"
               option-value="value"
-              size="small"
               class="w-full"
             />
-            <small class="text-surface-600 dark:text-surface-400"
-              >Decide if open trades should be visualized</small
-            >
+            <small class="ft-hint">Decide if open trades should be visualized</small>
           </div>
 
-          <div class="space-y-1">
-            <label class="block text-sm">UTC Timezone</label>
+          <div>
+            <label class="ft-label" for="timezone-select">Timezone</label>
             <Select
               v-model="settingsStore.timezone"
+              label-id="timezone-select"
               :options="timezoneOptions"
               class="w-full"
-              size="small"
             />
-            <small class="text-surface-600 dark:text-surface-400"
-              >Select timezone (UTC is recommended as exchanges usually work in UTC)</small
+            <small class="ft-hint"
+              >Used for all timestamps (UTC is recommended as exchanges usually work in UTC)</small
             >
           </div>
 
-          <BaseCheckbox v-model="settingsStore.backgroundSync" class="space-y-1">
+          <BaseCheckbox v-model="botStore.globalAutoRefresh">
+            Auto-refresh
+            <template #hint>
+              Master switch for automatic refreshing of all bots. Individual bots can be switched
+              off in the bot list above.
+            </template>
+          </BaseCheckbox>
+
+          <BaseCheckbox v-model="settingsStore.backgroundSync">
             Background sync
             <template #hint> Keep background sync running while other bots are selected. </template>
           </BaseCheckbox>
 
-          <BaseCheckbox v-model="settingsStore.confirmDialog" class="space-y-1">
-            Show Confirm Dialog for Trade Exits
+          <BaseCheckbox v-model="settingsStore.confirmDialog">
+            Show confirm dialog for trade exits
             <template #hint
-              >Use confirmation dialogs when force-exiting a trade.<br />
-              This will also show <i-mdi-run-fast class="text-yellow-300 inline" />
-              <i-mdi-alert class="text-yellow-300 inline" />
-              in the title bar.
+              >Use confirmation dialogs when force-exiting a trade. When disabled, a
+              <strong>NO CONFIRM</strong> warning is shown in the top bar.
             </template>
           </BaseCheckbox>
-
-          <BaseCheckbox v-model="settingsStore.multiPaneButtonsShowText" class="space-y-1">
-            Show Text on Multi Pane Buttons
-            <template #hint
-              >Show text on multi pane buttons. If disabled, only shows images.</template
-            >
-          </BaseCheckbox>
         </div>
+      </FtPanel>
 
-        <div class="border border-surface-400 rounded-sm p-4 space-y-4">
-          <h4 class="text-lg font-semibold">Chart settings</h4>
-
-          <div class="space-y-1">
-            <label class="block text-sm">Chart scale Side</label>
-            <div class="flex gap-4">
-              <div class="flex items-center">
-                <RadioButton v-model="settingsStore.chartLabelSide" value="left" size="small" />
-                <label class="ml-2">Left</label>
-              </div>
-              <div class="flex items-center">
-                <RadioButton v-model="settingsStore.chartLabelSide" value="right" size="small" />
-                <label class="ml-2">Right</label>
-              </div>
-            </div>
-            <small class="text-surface-600 dark:text-surface-400">
-              Should the scale be displayed on the right or left?
-            </small>
+      <FtPanel title="Charts">
+        <div class="ft-form">
+          <div>
+            <span class="ft-label">Chart scale side</span>
+            <FtSegmented
+              v-model="settingsStore.chartLabelSide"
+              :items="labelSideItems"
+              label="Chart scale side"
+            />
           </div>
 
-          <BaseCheckbox v-model="settingsStore.useHeikinAshiCandles" class="space-y-1">
+          <div>
+            <span class="ft-label">Candle colour preference</span>
+            <div class="flex flex-wrap gap-x-5 gap-y-2 items-center">
+              <div
+                v-for="option in colorPreferenceOptions"
+                :key="option.value"
+                class="flex items-center gap-2"
+              >
+                <RadioButton
+                  v-model="colorStore.colorPreference"
+                  :value="option.value"
+                  :input-id="`input-id${option.value}`"
+                  size="small"
+                />
+                <label :for="`input-id${option.value}`" class="flex items-center">
+                  <span class="mr-1">{{ option.text }}</span>
+                  <i-mdi-arrow-up-thin
+                    :class="option.value === ColorPreferences.GREEN_UP ? 'ft-pos' : 'ft-neg'"
+                  />
+                  <i-mdi-arrow-down-thin
+                    :class="option.value === ColorPreferences.GREEN_UP ? 'ft-neg' : 'ft-pos'"
+                    class="-ml-2"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <BaseCheckbox v-model="settingsStore.useHeikinAshiCandles">
             Use Heikin Ashi candles
             <template #hint>Use Heikin Ashi candles in your charts</template>
           </BaseCheckbox>
 
-          <BaseCheckbox v-model="settingsStore.useReducedPairCalls" class="space-y-1">
+          <BaseCheckbox v-model="settingsStore.useReducedPairCalls">
             Only request necessary columns
             <template #hint
               >Can reduce the transfer size for large dataframes. May require additional calls if
@@ -137,8 +155,10 @@ const resetDynamicLayout = () => {
           </BaseCheckbox>
 
           <div>
-            <p>Default number of candles to display (defaults to 250)</p>
-            <div class="flex flex-row gap-5 w-full items-center">
+            <label class="ft-label" for="candle-count"
+              >Default number of candles to display (defaults to 250)</label
+            >
+            <div class="flex flex-row gap-4 w-full items-center">
               <Slider
                 v-model="settingsStore.chartDefaultCandleCount"
                 class="flex-1"
@@ -148,75 +168,40 @@ const resetDynamicLayout = () => {
               />
               <InputNumber
                 v-model="settingsStore.chartDefaultCandleCount"
+                input-id="candle-count"
                 :step="50"
                 :min="100"
                 :max="2000"
-                size="small"
+                class="ft-candlecount"
               />
             </div>
           </div>
-
-          <div class="space-y-1">
-            <label class="block">Candle Color Preference</label>
-            <div class="flex flex-row gap-5 items-center">
-              <div
-                v-for="option in colorPreferenceOptions"
-                :key="option.value"
-                class="flex items-center"
-              >
-                <RadioButton
-                  v-model="colorStore.colorPreference"
-                  :value="option.value"
-                  :input-id="`input-id${option.value}`"
-                  size="small"
-                  @change="colorStore.updateProfitLossColor"
-                />
-                <label :for="`input-id${option.value}`" class="ml-2 flex items-center">
-                  <span class="mr-2">{{ option.text }}</span>
-                  <i-mdi-arrow-up-thin
-                    :color="
-                      option.value === ColorPreferences.GREEN_UP
-                        ? colorStore.colorProfit
-                        : colorStore.colorLoss
-                    "
-                    class="-ml-2"
-                  />
-                  <i-mdi-arrow-down-thin
-                    :color="
-                      option.value === ColorPreferences.GREEN_UP
-                        ? colorStore.colorLoss
-                        : colorStore.colorProfit
-                    "
-                    class="-ml-2"
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
         </div>
+      </FtPanel>
+    </div>
 
-        <div class="border rounded-sm p-4 space-y-4">
-          <h4 class="text-lg font-semibold">Notification Settings</h4>
-          <div class="space-y-2">
-            <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.entryFill]">
-              Entry notifications
-            </BaseCheckbox>
-            <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.exitFill]">
-              Exit notifications
-            </BaseCheckbox>
-            <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.entryCancel]">
-              Entry Cancel notifications
-            </BaseCheckbox>
-            <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.exitCancel]">
-              Exit Cancel notifications
-            </BaseCheckbox>
-          </div>
+    <div class="ft-grid-2">
+      <FtPanel title="Notifications">
+        <div class="ft-form">
+          <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.entryFill]">
+            Entry notifications
+          </BaseCheckbox>
+          <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.exitFill]">
+            Exit notifications
+          </BaseCheckbox>
+          <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.entryCancel]">
+            Entry cancel notifications
+          </BaseCheckbox>
+          <BaseCheckbox v-model="settingsStore.notifications[FtWsMessageTypes.exitCancel]">
+            Exit cancel notifications
+          </BaseCheckbox>
         </div>
+      </FtPanel>
 
-        <div class="border rounded-sm p-4 space-y-4">
-          <h4 class="text-lg font-semibold">Backtesting settings</h4>
+      <FtPanel title="Backtesting">
+        <div class="ft-form">
           <div>
-            <label for="backtestMetrics" class="block text-sm">Backtesting metrics</label>
+            <label for="backtestMetrics" class="ft-label">Backtesting metrics</label>
             <MultiSelect
               id="backtestMetrics"
               v-model="settingsStore.backtestAdditionalMetrics"
@@ -224,15 +209,28 @@ const resetDynamicLayout = () => {
               option-label="header"
               option-value="field"
               class="w-full"
-              size="small"
               display="chip"
             />
-            <small class="text-surface-600 dark:text-surface-400"
+            <small class="ft-hint"
               >Select which metrics should be shown on a per pair / tag basis.</small
             >
           </div>
         </div>
-      </div>
-    </template>
-  </Card>
+      </FtPanel>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.ft-settings {
+  max-width: 1100px;
+}
+.ft-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ft-candlecount {
+  width: 96px;
+}
+</style>

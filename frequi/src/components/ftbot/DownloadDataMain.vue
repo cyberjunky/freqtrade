@@ -94,9 +94,9 @@ async function startDownload() {
 </script>
 
 <template>
-  <div class="px-1 mx-auto w-full max-w-4xl lg:max-w-7xl">
-    <BackgroundJobTracking class="mb-4" />
-    <DraggableContainer header="Downloading Data" class="mx-1 p-4">
+  <div class="ft-stack">
+    <BackgroundJobTracking />
+    <FtPanel title="Download settings">
       <div class="flex mb-3 gap-3 flex-col">
         <div class="flex flex-col gap-3">
           <div class="flex flex-col lg:flex-row gap-3">
@@ -104,8 +104,8 @@ async function startDownload() {
             <div class="flex-fill">
               <div class="flex flex-col gap-2">
                 <div class="flex justify-between">
-                  <h4 class="text-start font-bold text-lg">Select Pairs</h4>
-                  <h5 class="text-start font-bold text-lg">Pairs from template</h5>
+                  <h3 class="ft-label">Select Pairs</h3>
+                  <span class="ft-label">Pairs from template</span>
                 </div>
                 <div class="flex gap-2">
                   <BaseStringList v-model="pairs" placeholder="Pair" size="small" class="grow" />
@@ -136,19 +136,19 @@ async function startDownload() {
             </div>
 
             <!-- Timeframes section -->
-            <div class="flex-fill px-3">
+            <div class="flex-fill">
               <div class="flex flex-col gap-2">
-                <h4 class="text-start font-bold text-lg">Select timeframes</h4>
+                <h3 class="ft-label">Select timeframes</h3>
                 <BaseStringList v-model="timeframes" placeholder="Timeframe" />
               </div>
             </div>
           </div>
 
           <!-- Time selection section -->
-          <div class="px-3 border dark:border-surface-700 border-surface-300 p-2 rounded-sm">
+          <div class="border border-line p-3 rounded-md">
             <div class="flex flex-col gap-2">
               <div class="flex justify-between items-center">
-                <h4 class="text-start mb-0 font-bold text-lg">Time Selection</h4>
+                <h3 class="ft-label">Time Selection</h3>
                 <BaseCheckbox v-model="timeSelection.useCustomTimerange" class="mb-0" switch>
                   Use custom timerange
                 </BaseCheckbox>
@@ -158,7 +158,7 @@ async function startDownload() {
                 <TimeRangeSelect v-model="timeSelection.timerange" />
               </div>
               <div v-else class="flex items-center gap-2">
-                <label>Days to download:</label>
+                <label class="ft-hint">Days to download:</label>
                 <InputNumber
                   v-model="timeSelection.days"
                   type="number"
@@ -172,9 +172,7 @@ async function startDownload() {
           </div>
 
           <!-- Advanced options section -->
-          <div
-            class="mb-2 border dark:border-surface-700 border-surface-300 rounded-sm p-2 text-start"
-          >
+          <div class="border border-line rounded-md p-3">
             <Button class="mb-2" severity="secondary" @click="isAdvancedOpen = !isAdvancedOpen">
               Advanced Options
               <i-mdi-chevron-down v-if="!isAdvancedOpen" />
@@ -182,13 +180,11 @@ async function startDownload() {
             </Button>
             <Transition>
               <div v-show="isAdvancedOpen">
-                <Message severity="info" class="mb-2 py-2">
+                <Message severity="info" class="mb-2" :closable="false">
                   Advanced options (Erase data, Download trades, and Custom Exchange settings) will
                   only be applied when this section is expanded.
                 </Message>
-                <div
-                  class="mb-2 border dark:border-surface-700 border-surface-300 rounded-md p-2 text-start"
-                >
+                <div class="mb-2 border border-line rounded-md p-3">
                   <BaseCheckbox v-model="advancedOptions.erase" class="mb-2"
                     >Erase existing data</BaseCheckbox
                   >
@@ -216,9 +212,7 @@ async function startDownload() {
                     >
                   </div>
                 </div>
-                <div
-                  class="mb-2 border dark:border-surface-700 border-surface-300 rounded-md p-2 text-start"
-                >
+                <div class="mb-2 border border-line rounded-md p-3">
                   <BaseCheckbox v-model="exchange.customExchange" class="mb-2">
                     Custom Exchange
                   </BaseCheckbox>
@@ -233,11 +227,11 @@ async function startDownload() {
             </Transition>
           </div>
 
-          <div class="px-3">
+          <div>
             <Button severity="primary" @click="startDownload">Start Download</Button>
           </div>
         </div>
       </div>
-    </DraggableContainer>
+    </FtPanel>
   </div>
 </template>

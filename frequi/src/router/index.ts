@@ -1,25 +1,49 @@
-import type { RouteRecordRaw } from 'vue-router';
+import type { RouteLocationRaw, RouteRecordRaw } from 'vue-router';
 import { createRouter, createWebHistory } from 'vue-router';
+import type { BotSection } from '@/composables/botInfo';
+
+/** Route to a section of the currently selected (or first) bot - used by the legacy paths. */
+function botRoute(section: BotSection): RouteLocationRaw {
+  const botStore = useBotStore();
+  const botId = botStore.selectedBot || botStore.availableBotsSorted[0]?.botId;
+  if (!botId) {
+    return { name: 'Overview' };
+  }
+  return { name: 'Bot', params: { botId, section }, replace: true };
+}
+
+/** Old paths keep working: they forward to the matching section of the bot page. */
+function legacy(path: string, section: BotSection): RouteRecordRaw {
+  return {
+    path,
+    component: () => import('@/views/BotView.vue'),
+    beforeEnter: () => botRoute(section),
+  };
+}
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('@/views/HomeView.vue'),
+    name: 'Overview',
+    component: () => import('@/views/OverviewView.vue'),
     meta: {
       allowAnonymous: true,
     },
   },
   {
-    path: '/trade',
-    name: 'Freqtrade Trading',
-    component: () => import('@/views/TradingView.vue'),
+    path: '/bot/:botId/:section(summary|chart|trades|performance|balance|bot)?',
+    name: 'Bot',
+    component: () => import('@/views/BotView.vue'),
   },
-  {
-    path: '/graph',
-    name: 'Freqtrade Graph',
-    component: () => import('@/views/ChartsView.vue'),
-  },
+  // Legacy paths (pre-redesign) -> redirects
+  { path: '/dashboard', redirect: { name: 'Overview' } },
+  legacy('/trade', 'summary'),
+  legacy('/graph', 'chart'),
+  legacy('/balance', 'balance'),
+  legacy('/open_trades', 'summary'),
+  legacy('/trade_history', 'trades'),
+  legacy('/pairlist', 'bot'),
+  // Tools
   {
     path: '/logs',
     name: 'Freqtrade Logs',
@@ -29,30 +53,6 @@ const routes: Array<RouteRecordRaw> = [
     path: '/backtest',
     name: 'Freqtrade Backtest',
     component: () => import('@/views/BacktestingView.vue'),
-  },
-  {
-    path: '/dashboard',
-    name: 'Freqtrade Dashboard',
-    component: () => import('@/views/DashboardView.vue'),
-  },
-  {
-    path: '/balance',
-    name: 'Freqtrade Balance',
-    component: () => import('@/components/ftbot/BotBalance.vue'),
-  },
-  {
-    path: '/open_trades',
-    component: () => import('@/views/MobileTradesListView.vue'),
-  },
-
-  {
-    path: '/trade_history',
-    component: () => import('@/views/MobileTradesListView.vue'),
-    props: { history: true },
-  },
-  {
-    path: '/pairlist',
-    component: () => import('@/components/ftbot/PairListLive.vue'),
   },
   {
     path: '/settings',
@@ -99,9 +99,17 @@ router.beforeEach((to) => {
       path: '/login',
       query: { redirect: to.fullPath },
     };
-  } else {
-    return true;
   }
+  if (to.name === 'Bot') {
+    const botId = String(to.params.botId);
+    if (!(botId in botStore.availableBots)) {
+      return { name: 'Overview' };
+    }
+    if (botStore.selectedBot !== botId) {
+      botStore.selectBot(botId);
+    }
+  }
+  return true;
 });
 
 export default router;

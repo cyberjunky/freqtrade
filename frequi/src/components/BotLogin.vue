@@ -166,77 +166,81 @@ onMounted(() => {
 </script>
 
 <template>
-  <form ref="formRef" novalidate @submit.stop.prevent="handleSubmit" @reset="handleReset">
-    <div class="mb-4">
-      <label for="name-input" class="block text-sm font-medium">Bot Name</label>
+  <form
+    ref="formRef"
+    class="ft-loginform"
+    novalidate
+    @submit.stop.prevent="handleSubmit"
+    @reset="handleReset"
+  >
+    <div class="ft-field">
+      <label for="name-input" class="ft-label">Bot name</label>
       <InputText
         id="name-input"
         v-model="auth.botName"
-        placeholder="Bot Name"
-        class="mt-1 block w-full"
+        placeholder="e.g. Kraken spot"
+        class="w-full"
         @keydown.enter="handleOk"
       />
     </div>
-    <div class="mb-4">
-      <label for="url-input" class="block text-sm font-medium">API Url</label>
+    <div class="ft-field">
+      <label for="url-input" class="ft-label">API URL</label>
       <InputText
         id="url-input"
         v-model="auth.url"
         required
         trim
         :invalid="urlState === false"
-        class="mt-1 block w-full"
+        class="w-full ft-mono"
         @keydown.enter="handleOk"
       />
-      <span v-if="urlState === false" class="mt-2 text-sm text-red-500">API URL required</span>
-      <Message v-if="urlDuplicate" class="mt-2 text-sm" severity="warn">
+      <span v-if="urlState === false" class="ft-field-error">API URL required</span>
+      <Message v-if="urlDuplicate" class="mt-2" severity="warn" :closable="false">
         This URL is already in use by another bot.
       </Message>
     </div>
-    <div class="mb-4">
-      <label for="username-input" class="block text-sm font-medium">Username</label>
+    <div class="ft-field">
+      <label for="username-input" class="ft-label">Username</label>
       <InputText
         id="username-input"
         v-model="auth.username"
         required
         placeholder="Freqtrader"
+        autocomplete="username"
         :invalid="nameState === false"
-        class="mt-1 block w-full"
+        class="w-full"
         @keydown.enter="handleOk"
       />
-      <span v-if="nameState === false" class="mt-2 text-sm text-red-500">
+      <span v-if="nameState === false" class="ft-field-error">
         Name and Password are required.
       </span>
     </div>
-    <div class="mb-4">
-      <label for="password-input" class="block text-sm font-medium">Password</label>
+    <div class="ft-field">
+      <label for="password-input" class="ft-label">Password</label>
       <InputText
         id="password-input"
         v-model="auth.password"
         required
         type="password"
+        autocomplete="current-password"
         :invalid="pwdState === false"
-        class="mt-1 block w-full"
+        class="w-full"
         @keydown.enter="handleOk"
       />
-      <span v-if="pwdState === false" class="mt-2 text-sm text-red-500"> Invalid Password </span>
+      <span v-if="pwdState === false" class="ft-field-error"> Invalid Password </span>
     </div>
-    <div>
-      <Message v-if="errorMessage" class="mt-2 text-sm whitespace-pre-line" severity="warn">
-        {{ errorMessage }}
-        <br />
-        <span v-if="errorMessageCORS">
-          Please also check your bot's CORS configuration:
-          <a
-            href="https://www.freqtrade.io/en/latest/rest-api/#cors"
-            class="text-blue-500 underline"
-            >Freqtrade CORS documentation</a
-          >
-        </span>
-      </Message>
-    </div>
-    <div class="flex justify-end gap-2 mt-4">
-      <Button label="Reset" severity="danger" type="reset" />
+    <Message v-if="errorMessage" class="whitespace-pre-line" severity="error" :closable="false">
+      {{ errorMessage }}
+      <br />
+      <span v-if="errorMessageCORS">
+        Please also check your bot's CORS configuration:
+        <a href="https://www.freqtrade.io/en/latest/rest-api/#cors" target="_blank" rel="noopener"
+          >Freqtrade CORS documentation</a
+        >
+      </span>
+    </Message>
+    <div class="ft-loginform-actions">
+      <Button label="Reset" severity="secondary" variant="text" type="reset" />
       <Button
         v-if="inModal"
         label="Cancel"
@@ -244,7 +248,7 @@ onMounted(() => {
         type="button"
         @click="emitLoginResult(true)"
       />
-      <Button label="Submit" severity="primary" type="submit">
+      <Button label="Connect" severity="primary" type="submit">
         <template #icon>
           <i-mdi-login />
         </template>
@@ -252,3 +256,23 @@ onMounted(() => {
     </div>
   </form>
 </template>
+
+<style scoped>
+.ft-loginform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ft-field-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ft-danger);
+}
+.ft-loginform-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+</style>

@@ -36,7 +36,6 @@ use([
 const colorStore = useColorStore();
 // Define Column labels here to avoid typos
 const CHART_WALLET_HISTORY = 'Wallet history';
-const SERIES_COLORS = ['#1d4ed8', '#d931e5', '#059669', '#b45309', '#be123c', '#7c3aed', '#0f766e'];
 
 const props = withDefaults(
   defineProps<{
@@ -79,7 +78,8 @@ const walletHistoryOptions: ComputedRef<EChartsOption> = computed(() => {
     .filter((botId) => legendSelection.value[botId] ?? true);
   const useProfitLossVisualMap = selectedBotIds.length === 1;
   const selectedBotId = selectedBotIds[0];
-  const captureLineColor = settingsStore.chartTheme === 'dark' ? '#c2c2c2' : '#4b5563';
+  const captureLineColor = themeTokens['text-2'];
+  const SERIES_COLORS = themeTokens.series;
 
   walletEntries.forEach(([botId, history], botIndex) => {
     const botName = history.botName ?? botId;
@@ -128,9 +128,10 @@ const walletHistoryOptions: ComputedRef<EChartsOption> = computed(() => {
         yAxis: startingValue,
         emphasis: { disabled: true },
         label: {
-          show: true,
+          // One label only - with several bots the labels would collide (legend + tooltip identify them).
+          show: walletEntries.length === 1,
           position: 'insideStartTop',
-          formatter: `Starting balance ${botName}`,
+          formatter: 'Starting balance',
           color: captureLineColor,
         },
       },
@@ -153,9 +154,9 @@ const walletHistoryOptions: ComputedRef<EChartsOption> = computed(() => {
         xAxis: captureStartTs,
         emphasis: { disabled: true },
         label: {
-          show: true,
+          show: walletEntries.length === 1,
           position: 'insideEndTop',
-          formatter: `Capture start ${botName}`,
+          formatter: 'Capture start',
           color: captureLineColor,
         },
         lineStyle: {
@@ -247,9 +248,7 @@ const walletHistoryOptions: ComputedRef<EChartsOption> = computed(() => {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        label: {
-          backgroundColor: '#6a7985',
-        },
+        label: {},
       },
       formatter: (params) => {
         const seriesParams = Array.isArray(params) ? params : [params];
@@ -331,7 +330,6 @@ const walletHistoryOptions: ComputedRef<EChartsOption> = computed(() => {
     visualMap,
     series,
   };
-  console.log('Wallet balance chart options', option);
   return option;
 });
 </script>
@@ -344,12 +342,11 @@ const walletHistoryOptions: ComputedRef<EChartsOption> = computed(() => {
     @legendselectchanged="handleLegendSelectChanged"
     autoresize
   />
-  <div v-else class="flex flex-col items-center justify-center h-full gap-2">
-    <p class="text-gray-500">No historic wallet data available.</p>
-    <p class="text-gray-500 text-sm">
+  <FtEmpty v-else title="No balance history available">
+    <span>
       You may need to update your freqtrade version to have historic wallet balance data available.
-    </p>
-  </div>
+    </span>
+  </FtEmpty>
 </template>
 
 <style lang="css" scoped>

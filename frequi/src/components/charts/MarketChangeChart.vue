@@ -81,9 +81,7 @@ const marketChangeOptions: ComputedRef<EChartsOption> = computed(() => {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        label: {
-          backgroundColor: '#6a7985',
-        },
+        label: {},
       },
     },
     grid: {
@@ -141,7 +139,7 @@ const marketChangeOptions: ComputedRef<EChartsOption> = computed(() => {
         type: 'line',
         name: CHART_MARKET_CHANGE,
         showSymbol: false,
-        color: settingsStore.chartTheme === 'dark' ? '#c2c2c2' : 'black',
+        color: themeTokens['text-2'],
         datasetIndex: 1,
         encode: {
           x: colDate,

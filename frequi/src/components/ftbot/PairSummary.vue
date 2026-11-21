@@ -104,56 +104,110 @@ const combinedPairList = computed(() => {
 </script>
 
 <template>
-  <div>
-    <div
-      label-for="trade-filter"
-      class="mb-2"
-      :class="{
-        'me-4': backtestMode,
-        'me-2': !backtestMode,
-      }"
-    >
-      <InputText
-        id="trade-filter"
-        v-model="filterText"
-        type="text"
-        placeholder="Filter"
-        class="w-full"
-      />
-    </div>
-    <ul
-      class="divide-y divide-surface-300 dark:divide-surface-700 divide-solid border-x border-y rounded-sm border-surface-300 dark:border-surface-700"
-    >
+  <div class="ft-pairs">
+    <InputText
+      id="trade-filter"
+      v-model="filterText"
+      type="text"
+      size="small"
+      placeholder="Filter pairs"
+      aria-label="Filter pairs"
+      class="ft-pairs-filter"
+    />
+    <ul class="ft-pairs-list">
       <li
         v-for="comb in combinedPairList"
         :key="comb.pair"
-        button
-        class="flex cursor-pointer last:rounded-b justify-between items-center px-1 py-1.5"
-        :class="{
-          'bg-primary dark:border-primary text-primary-contrast':
-            comb.pair === botStore.activeBot.selectedPair,
-        }"
+        :aria-label="comb.pair"
+        class="ft-pair-row"
+        :class="{ 'is-selected': comb.pair === botStore.activeBot.selectedPair }"
         :title="`${formatPriceCurrency(comb.profitAbs, botStore.activeBot.stakeCurrency, botStore.activeBot.stakeCurrencyDecimals)} - ${comb.pair} - ${comb.tradeCount} trades`"
-        @click="botStore.activeBot.selectedPair = comb.pair"
       >
-        <div class="flex items-center gap-2">
-          {{ comb.pair }}
-          <span v-if="comb.locks" :title="comb.lockReason"> <i-mdi-lock /> </span>
-        </div>
-
-        <TradeProfit v-if="comb.trade && !backtestMode" :trade="comb.trade" />
-        <ProfitPill
-          v-if="backtestMode && comb.tradeCount > 0"
-          :profit-ratio="comb.profit"
-          :stake-currency="botStore.activeBot.stakeCurrency"
-        />
+        <button
+          type="button"
+          class="ft-pair-btn"
+          :aria-pressed="comb.pair === botStore.activeBot.selectedPair"
+          @click="botStore.activeBot.selectedPair = comb.pair"
+        >
+          <span class="ft-pair-name ft-mono">
+            {{ comb.pair }}
+            <span v-if="comb.locks" :title="comb.lockReason" class="ft-pair-lock">
+              <i-mdi-lock aria-label="locked" />
+            </span>
+          </span>
+          <TradeProfit v-if="comb.trade && !backtestMode" :trade="comb.trade" />
+          <ProfitPill
+            v-if="backtestMode && comb.tradeCount > 0"
+            :profit-ratio="comb.profit"
+            :stake-currency="botStore.activeBot.stakeCurrency"
+          />
+        </button>
       </li>
+      <li v-if="combinedPairList.length === 0" class="ft-pairs-empty">No pairs.</li>
     </ul>
   </div>
 </template>
 
 <style scoped>
-.list-group {
+.ft-pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
   text-align: left;
+}
+.ft-pairs-filter {
+  width: 100%;
+}
+.ft-pairs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-control);
+  overflow: hidden;
+}
+.ft-pair-row {
+  border-bottom: 1px solid var(--ft-border);
+}
+.ft-pair-row:last-child {
+  border-bottom: 0;
+}
+.ft-pair-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ft-pair-btn:hover {
+  background: var(--ft-hover);
+}
+.ft-pair-btn:focus-visible {
+  outline: 2px solid var(--ft-primary);
+  outline-offset: -2px;
+}
+.ft-pair-row.is-selected .ft-pair-btn {
+  background: var(--ft-selected);
+  box-shadow: inset 2px 0 0 var(--ft-primary);
+}
+.ft-pair-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ft-pair-lock {
+  color: var(--ft-warning);
+  display: inline-flex;
+}
+.ft-pairs-empty {
+  padding: 12px;
+  color: var(--ft-muted);
+  text-align: center;
 }
 </style>

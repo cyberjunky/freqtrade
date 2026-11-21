@@ -8,13 +8,13 @@ const { runningJobs, clearJobs } = useBackgroundJob();
       <li
         v-for="(job, key) in runningJobs"
         :key="key"
-        class="border p-1 pb-2 rounded-sm dark:border-surface-700 border-surface-300 flex gap-2 items-center"
+        class="border border-line p-2 rounded-md flex gap-2 items-center"
         :title="key"
       >
         <i-mdi-download-box-outline v-if="job.taskStatus?.job_category === 'download_data'" />
         <span v-else>{{ job.taskStatus?.job_category }}</span>
         <div class="flex justify-between">
-          <i-mdi-check v-if="job.taskStatus?.status === 'success'" class="text-success" title="" />
+          <i-mdi-check v-if="job.taskStatus?.status === 'success'" class="text-ok" title="" />
           <span v-else>{{ job.taskStatus?.status }} </span>
           <span v-if="job.taskStatus?.progress" class="w-25">{{ job.taskStatus?.progress }}</span>
         </div>
@@ -43,7 +43,7 @@ const { runningJobs, clearJobs } = useBackgroundJob();
               show-progress
               :pt="{
                 value: {
-                  class: job.taskStatus.status === 'success' ? 'bg-emerald-500' : 'bg-amber-500',
+                  class: job.taskStatus.status === 'success' ? 'bg-ok' : 'bg-warn',
                 },
               }"
               striped

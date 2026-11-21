@@ -1,5 +1,14 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+const botStore = useBotStore();
+</script>
 
 <template>
-  <DownloadDataMain class="pt-4" />
+  <ToolPage
+    title="Download data"
+    description="Download historic candle data for backtesting."
+    requires-webserver
+    :feature-available="botStore.activeBotorUndefined?.botFeatures.downloadDataView ?? true"
+  >
+    <DownloadDataMain />
+  </ToolPage>
 </template>

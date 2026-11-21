@@ -4,9 +4,14 @@ import { TimeSummaryOptions } from '@/types';
 const botStore = useBotStore();
 const settingsStore = useSettingsStore();
 
-const props = defineProps<{
-  multiBotView?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    multiBotView?: boolean;
+    /** Show the table below the chart (single bot only) */
+    showTable?: boolean;
+  }>(),
+  { multiBotView: false, showTable: false },
+);
 
 const hasWeekly = computed(
   () => botStore.activeBot?.botFeatures?.weeklyMonthlyStats || props.multiBotView,
@@ -22,8 +27,8 @@ const periodicBreakdownSelections = computed(() => {
 });
 
 const absRelSelections = ref([
-  { value: 'abs_profit', text: 'Abs $' },
-  { value: 'rel_profit', text: 'Rel %' },
+  { value: 'abs_profit', text: 'Absolute' },
+  { value: 'rel_profit', text: 'Relative %' },
 ]);
 
 const selectedStats = computed(() => {
@@ -72,22 +77,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
-    <div v-if="!props.multiBotView" class="mb-2">
-      <h3 class="me-auto inline text-xl">{{ hasWeekly ? 'Period' : 'Daily' }} Breakdown</h3>
-      <Button class="float-end" severity="secondary" @click="refreshSummary">
-        <template #icon>
-          <i-mdi-refresh />
-        </template>
-      </Button>
-    </div>
-    <div class="flex align-center justify-between">
+  <div class="ft-period">
+    <div class="ft-period-bar">
       <SelectButton
         v-if="hasWeekly"
-        id="order-direction"
         v-model="settingsStore.timeProfitPeriod"
         :options="periodicBreakdownSelections"
-        name="radios-btn-default"
+        aria-label="Period"
         size="small"
         :allow-empty="false"
         option-label="text"
@@ -96,16 +92,24 @@ onMounted(() => {
       ></SelectButton>
       <SelectButton
         v-model="settingsStore.timeProfitPreference"
-        name="radios-btn-select"
+        aria-label="Profit display"
         size="small"
         :allow-empty="false"
         option-label="text"
         option-value="value"
         :options="absRelSelections"
-        buttons
-        button-variant="outline-primary"
       >
       </SelectButton>
+      <Button
+        severity="secondary"
+        size="small"
+        class="ms-auto"
+        title="Refresh"
+        aria-label="Refresh"
+        @click="refreshSummary"
+      >
+        <template #icon><i-mdi-refresh /></template>
+      </Button>
     </div>
 
     <div
@@ -114,44 +118,87 @@ onMounted(() => {
         botStore.selectedBotCount <= 1 ||
         settingsStore.timeProfitPreference !== 'rel_profit'
       "
+      class="ft-period-chart"
     >
       <TimePeriodChart
-        v-if="selectedStats"
+        v-if="selectedStats && selectedStats.data"
         :daily-stats="selectedStatsSorted"
         :show-title="false"
         :profit-col="settingsStore.timeProfitPreference"
       />
     </div>
-    <div v-else class="flex items-center justify-center h-full w-full p-2">
-      Time period chart is only available when a single bot is selected and showing absolute profit.
-    </div>
-    <div v-if="!props.multiBotView">
-      <DataTable size="small" :value="selectedStats.data">
-        <Column field="date" header="Day"></Column>
-        <Column field="abs_profit" header="Profit">
+    <FtEmpty
+      v-else
+      class="ft-period-chart"
+      text="Relative profit is only available when a single bot is selected. Switch to absolute profit."
+    />
+    <div v-if="!props.multiBotView && showTable" class="ft-period-table">
+      <DataTable size="small" :value="selectedStats.data" scrollable>
+        <template #empty>No data.</template>
+        <Column field="date" header="Period" class="ft-mono"></Column>
+        <Column
+          field="abs_profit"
+          :header="`Profit ${botStore.activeBot.stakeCurrency}`"
+          class="ft-num"
+        >
           <template #body="{ data, field }">
-            {{ formatPrice(data[field as string], botStore.activeBot.stakeCurrencyDecimals) }}
+            <span :class="profitClass(data[field as string])">{{
+              formatSigned(data[field as string], botStore.activeBot.stakeCurrencyDecimals)
+            }}</span>
           </template>
         </Column>
         <Column
           field="fiat_value"
-          :header="`In ${botStore.activeBot.dailyStats.fiat_display_currency}`"
+          :header="`In ${botStore.activeBot.dailyStats.fiat_display_currency ?? 'fiat'}`"
+          class="ft-num"
         >
           <template #body="{ data, field }">
-            {{ formatPrice(data[field as string], 2) }}
+            {{ formatSigned(data[field as string], 2) }}
           </template>
         </Column>
-        <Column field="trade_count" header="Trades"></Column>
         <Column
           v-if="botStore.activeBot.botFeatures.advancedDailyMetrics"
           field="rel_profit"
-          header="Profit%"
+          header="Profit %"
+          class="ft-num"
         >
           <template #body="{ data, field }">
-            {{ formatPercent(data[field as string], 2) }}
+            <span :class="profitClass(data[field as string])">{{
+              formatSignedPercent(data[field as string], 2)
+            }}</span>
           </template>
         </Column>
+        <Column field="trade_count" header="Trades" class="ft-num"></Column>
       </DataTable>
     </div>
   </div>
 </template>
+
+<style scoped>
+.ft-period {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+.ft-period-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ft-period-chart {
+  flex: 1 1 auto;
+  min-height: 220px;
+}
+.ft-period-table {
+  margin: 12px -18px -16px;
+  border-top: 1px solid var(--ft-border);
+}
+@media (max-width: 700px) {
+  .ft-period-table {
+    margin: 12px -12px -12px;
+  }
+}
+</style>

@@ -81,7 +81,10 @@ test.describe('Chart', () => {
       },
     );
 
-    await page.getByRole('button', { name: 'Toggle Night Mode' }).click();
+    // Theme toggle cycles auto -> light -> dark; the default (dark) -> auto -> light
+    await page.getByRole('button', { name: /^Theme:/ }).click();
+    await page.getByRole('button', { name: /^Theme:/ }).click();
+    await expect(page.locator('html')).toHaveClass(/ft-light-theme/);
 
     await expect(page.locator('canvas')).toHaveScreenshot('Chart-Plot-with_BollingerBands.png', {
       threshold: 0.15,

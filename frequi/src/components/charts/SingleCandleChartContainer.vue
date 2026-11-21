@@ -125,11 +125,12 @@ watch(
     class="flex-fill w-full flex-col align-items-stretch flex"
     :class="{
       'h-full': isSinglePairView,
-      'h-150 border border-r border-b border-surface-300 dark:border-surface-700':
-        !isSinglePairView,
+      'h-150 border border-line': !isSinglePairView,
     }"
   >
-    <div class="flex me-0 w-full items-center justify-between">
+    <div
+      class="flex me-0 w-full items-center justify-between text-fg-2 text-[11.5px] font-mono px-2"
+    >
       <div class="ms-1 md:ms-2 flex flex-wrap md:flex-nowrap items-center gap-1">
         <div class="flex flex-col md:flex-row md:gap-2">
           <div class="flex flex-row flex-wrap gap-2">
@@ -177,7 +178,7 @@ watch(
         />
         <div v-else class="m-auto">
           <ProgressSpinner v-if="isLoadingDataset" class="w-5 h-5" label="Spinning" />
-          <div v-else class="text-lg">
+          <div v-else class="text-muted p-6 text-center">
             {{ noDatasetText }}
           </div>
           <p v-if="botStore.activeBot.historyTakesLonger">

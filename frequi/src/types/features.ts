@@ -25,7 +25,7 @@ export type FeatureKey =
   | 'chartLiveData'
   | 'hasProfitAll'
   | 'backtestHistory'
-  | 'backtestFreqAI'
+  | 'backtestCache'
   | 'backtestDelete'
   | 'backtestSetNotes'
   | 'downloadDataView'
@@ -63,7 +63,7 @@ export const FEATURES: Record<FeatureKey, FeatureConfig> = {
   hasProfitAll: { minVersion: 2.43, description: 'Profit all endpoint' },
   // Backtesting
   backtestHistory: { minVersion: 2.15, description: 'Can Run Backtests' },
-  backtestFreqAI: { minVersion: 2.22, description: 'FreqAI support for backtesting' },
+  backtestCache: { minVersion: 2.22, description: 'Backtest result cache control' },
   backtestDelete: { minVersion: 2.31, description: 'Delete backtest endpoints' },
   backtestSetNotes: { minVersion: 2.32, description: 'Set notes for backtest results' },
   // Overall Webserver features

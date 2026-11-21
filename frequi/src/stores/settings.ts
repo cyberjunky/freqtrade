@@ -23,7 +23,10 @@ export const useSettingsStore = defineStore('uiSettings', {
       openTradesInTitle: OpenTradeVizOptions.showPill as string,
       timezone: 'UTC',
       backgroundSync: true,
+      /** Resolved theme (kept in sync by composables/theme.ts) */
       currentTheme: 'dark' as ThemeName,
+      /** User choice: auto / light / dark. Empty = not chosen yet (falls back to currentTheme). */
+      themeMode: '' as '' | 'auto' | 'light' | 'dark',
       _uiVersion: 'dev',
       useHeikinAshiCandles: false,
       showMarkArea: true,
@@ -35,7 +38,6 @@ export const useSettingsStore = defineStore('uiSettings', {
       chartDefaultCandleCount: 250,
       timeProfitPeriod: TimeSummaryOptions.daily,
       timeProfitPreference: TimeSummaryCols.abs_profit,
-      multiPaneButtonsShowText: false,
       multiPairSelection: false,
       backtestAdditionalMetrics: ['profit_factor', 'expectancy'] as string[],
     };

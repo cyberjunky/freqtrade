@@ -62,28 +62,22 @@ function stopEditBot(botId: string) {
 </script>
 
 <template>
-  <div v-if="botStore.botCount > 0" class="w-full mx-2">
-    <h3 v-if="!small" class="font-bold text-2xl mb-2">Available bots</h3>
-    <ul
-      ref="sortContainer"
-      class="flex flex-col divide-y border-x border-surface-500 rounded-sm border-y divide-solid divide-surface-500"
-    >
+  <div v-if="botStore.botCount > 0" class="ft-botlist">
+    <ul ref="sortContainer" class="ft-botlist-items">
       <li
         v-for="bot in botListComp"
         :key="bot.botId"
-        :active="bot.botId === botStore.selectedBot"
-        button
-        :title="`${bot.botId} - ${bot.botName} - ${bot.botUrl} - ${
-          botStore.botStores[bot.botId]?.isBotLoggedIn ? '' : 'Login info expired!'
+        :title="`${bot.botId} - ${bot.botName} - ${bot.botUrl} ${
+          botStore.botStores[bot.botId]?.isBotLoggedIn ? '' : '- Login info expired!'
         }`"
-        class="flex items-center p-2"
-        :class="{
-          'bg-primary-100 dark:bg-primary-800 underline font-semibold':
-            bot.botId === botStore.selectedBot,
-        }"
-        @click="botStore.selectBot(bot.botId)"
+        class="ft-botlist-item"
       >
-        <i-mdi-reorder-horizontal v-if="!small" class="handle cursor-pointer me-2 fs-4" />
+        <i-mdi-drag
+          v-if="!small"
+          class="handle ft-botlist-handle"
+          title="Drag to reorder"
+          aria-hidden="true"
+        />
         <BotRename
           v-if="editingBots.includes(bot.botId)"
           :bot="bot"
@@ -100,6 +94,35 @@ function stopEditBot(botId: string) {
         />
       </li>
     </ul>
-    <LoginModal v-if="!small" ref="loginModal" class="mt-2" login-text="Add new bot" />
+    <LoginModal v-if="!small" ref="loginModal" class="ft-botlist-add" login-text="Add new bot" />
   </div>
 </template>
+
+<style scoped>
+.ft-botlist-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ft-border);
+  border-radius: var(--ft-radius-control);
+}
+.ft-botlist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--ft-border);
+  min-width: 0;
+}
+.ft-botlist-item:last-child {
+  border-bottom: 0;
+}
+.ft-botlist-handle {
+  cursor: grab;
+  color: var(--ft-muted);
+  flex: 0 0 auto;
+}
+.ft-botlist-add {
+  margin-top: 10px;
+}
+</style>

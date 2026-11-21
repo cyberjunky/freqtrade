@@ -16,14 +16,16 @@ withDefaults(
 
 <template>
   <div class="flex flex-col me-2 text-start">
-    <div class="font-bold">
+    <div class="font-semibold font-mono text-[12.5px]">
       {{ backtestResult.metadata.strategyName }} - {{ backtestResult.strategy.timeframe }}
     </div>
-    <div class="text-sm">
-      TradeCount: {{ backtestResult.strategy.total_trades }} - Profit:
-      {{ formatPercent(backtestResult.strategy.profit_total) }}
+    <div class="text-[12px] text-fg-2">
+      {{ backtestResult.strategy.total_trades }} trades ·
+      <span :class="profitClass(backtestResult.strategy.profit_total)" class="font-mono">{{
+        formatSignedPercent(backtestResult.strategy.profit_total, 2)
+      }}</span>
     </div>
-    <div v-if="canUseModify" class="text-sm" style="white-space: pre-wrap">
+    <div v-if="canUseModify" class="text-[12px] text-muted" style="white-space: pre-wrap">
       {{ backtestResult.metadata.notes }}
     </div>
   </div>

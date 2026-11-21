@@ -25,13 +25,16 @@ const sortedParamsBySpace = computed<Record<string, typeof props.strategy.params
 </script>
 
 <template>
-  <div v-if="strategy.params && strategy.params.length > 0" class="text-start">
-    <div v-for="(params, space) in sortedParamsBySpace" :key="space" class="mb-4">
-      <h3 class="text-md font-bold underline mb-2" :title="`Space ${space}`">{{ space }}</h3>
+  <div
+    v-if="strategy.params && strategy.params.length > 0"
+    class="grid gap-x-8 gap-y-3 grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))]"
+  >
+    <div v-for="(params, space) in sortedParamsBySpace" :key="space" class="min-w-0">
+      <h3 class="ft-label" :title="`Space ${space}`">{{ space }}</h3>
       <div
         v-for="param in params"
         :key="param.name"
-        class="mb-2 flex justify-between"
+        class="flex justify-between gap-3 py-1 border-b border-line font-mono text-[12.5px]"
         :title="param.param_type"
       >
         <span>{{ param.name }}</span>

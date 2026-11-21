@@ -29,31 +29,22 @@ const backtestResultFields = computed(() => {
 </script>
 
 <template>
-  <div class="px-0 mw-full">
-    <div class="flex justify-center">
-      <h3 class="font-bold text-3xl">Backtest-result comparison</h3>
-    </div>
-    <div class="flex flex-col text-start ms-0 me-2 gap-2">
-      <div class="flex flex-col flex-xl-row">
-        <div class="px-0 xl:px-0 pt-2 xl:pt-0 xl:ps-1 flex-fill">
-          <DataTable bordered :value="backtestResultStats" size="small" show-gridlines>
-            <Column
-              v-for="col in backtestResultFields"
-              :key="col.key"
-              :field="col.key"
-              :label="col.label"
-            >
-              <template #header>
-                <BacktestResultSelectEntry
-                  v-if="col.key && backtestResults[col.key]"
-                  :backtest-result="backtestResults[col.key]!"
-                />
-                <span v-else>{{ col.label }}</span>
-              </template>
-            </Column>
-          </DataTable>
-        </div>
-      </div>
-    </div>
-  </div>
+  <FtPanel title="Backtest result comparison" flush>
+    <DataTable :value="backtestResultStats" size="small" scrollable>
+      <Column
+        v-for="col in backtestResultFields"
+        :key="col.key"
+        :field="col.key"
+        :label="col.label"
+      >
+        <template #header>
+          <BacktestResultSelectEntry
+            v-if="col.key && backtestResults[col.key]"
+            :backtest-result="backtestResults[col.key]!"
+          />
+          <span v-else>{{ col.label }}</span>
+        </template>
+      </Column>
+    </DataTable>
+  </FtPanel>
 </template>

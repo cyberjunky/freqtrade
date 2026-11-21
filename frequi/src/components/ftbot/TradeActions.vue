@@ -22,7 +22,7 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="flex flex-col gap-1">
+  <div class="flex flex-col gap-1 min-w-44">
     <Button
       v-if="!botFeatures.forceExitParams"
       class="justify-start!"
@@ -115,7 +115,7 @@ defineEmits<{
     <Button
       class="justify-start!"
       size="small"
-      severity="secondary"
+      severity="danger"
       title="Delete trade"
       label="Delete trade"
       @click="$emit('deleteTrade', trade)"

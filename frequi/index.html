@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark ft-dark-theme">
 
 <head>
   <meta charset="utf-8">
@@ -7,10 +7,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <link rel="icon" href="/favicon.ico">
   <title>FreqUI</title>
-
+  <script>
+    // Apply the stored theme before first paint (dark is the default).
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('ftUISettings') || '{}');
+        var mode = s.themeMode || (s.currentTheme === 'light' || s.currentTheme === 'bootstrap' ? 'light' : 'dark');
+        if (mode === 'auto') {
+          mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (mode === 'light') {
+          var c = document.documentElement.classList;
+          c.remove('dark', 'ft-dark-theme');
+          c.add('ft-light-theme');
+        }
+      } catch (e) { /* keep default */ }
+    })();
+  </script>
 </head>
 
-<body >
+<body>
   <noscript>
     <strong>We're sorry but FreqUI doesn't work properly without JavaScript enabled. Please enable it to
       continue.</strong>

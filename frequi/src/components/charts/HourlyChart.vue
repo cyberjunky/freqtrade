@@ -78,9 +78,7 @@ const hourlyChartOptions = computed((): EChartsOption => {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        label: {
-          backgroundColor: '#6a7985',
-        },
+        label: {},
       },
     },
     legend: {
@@ -141,7 +139,7 @@ const hourlyChartOptions = computed((): EChartsOption => {
         name: CHART_TRADE_COUNT,
         animation: false,
         itemStyle: {
-          color: 'rgba(150,150,150,0.3)',
+          color: themeTokens.grid,
         },
         yAxisIndex: 1,
       },

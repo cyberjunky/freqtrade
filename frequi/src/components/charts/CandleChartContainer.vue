@@ -142,12 +142,12 @@ const singlePairSelection = computed({
 <template>
   <div class="flex h-full">
     <div class="flex-fill w-full flex-col align-items-stretch flex h-full">
-      <div class="flex me-0 items-center md:gap-2">
-        <span class="md:ms-2 text-nowrap">{{ strategyName }} | {{ timeframe || '' }}</span>
+      <div class="ft-cc-bar">
+        <span class="ft-cc-strat ft-mono">{{ strategyName }} | {{ timeframe || '' }}</span>
         <MultiSelect
           v-if="settingsStore.multiPairSelection"
           v-model="botStore.activeBot.plotMultiPairs"
-          class="w-80"
+          class="ft-cc-pair"
           :options="availablePairs"
           optionlabel=""
           placeholder="Select pairs to plot"
@@ -158,7 +158,7 @@ const singlePairSelection = computed({
         <Select
           v-else
           v-model="singlePairSelection"
-          class="w-80"
+          class="ft-cc-pair"
           :options="availablePairs"
           size="small"
           :clearable="false"
@@ -178,7 +178,7 @@ const singlePairSelection = computed({
         <BaseCheckbox v-model="settingsStore.multiPairSelection">
           <span class="text-nowrap">Multi pair</span>
         </BaseCheckbox>
-        <div class="ms-auto flex items-center gap-2">
+        <div class="ft-cc-bar-right">
           <BaseCheckbox v-model="settingsStore.showMarkArea">
             <span class="text-nowrap">Show Chart Areas</span>
           </BaseCheckbox>
@@ -188,7 +188,7 @@ const singlePairSelection = computed({
 
           <PlotConfigSelect></PlotConfigSelect>
 
-          <div class="me-0 md:me-1">
+          <div>
             <Button
               size="small"
               title="Plot configurator"
@@ -196,7 +196,7 @@ const singlePairSelection = computed({
               @click="showConfigurator"
             >
               <template #icon>
-                <i-mdi-cog width="12" height="12" />
+                <i-mdi-cog />
               </template>
             </Button>
           </div>
@@ -224,7 +224,7 @@ const singlePairSelection = computed({
         </SingleCandleChartContainer>
       </div>
       <div v-else class="flex flex-col items-center justify-center h-full w-full">
-        <span class="text-2xl font-semibold">No pair selected</span>
+        <FtEmpty title="No pair selected" />
       </div>
     </div>
     <Dialog
@@ -238,3 +238,29 @@ const singlePairSelection = computed({
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+.ft-cc-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 0 6px 6px;
+}
+.ft-cc-strat {
+  font-size: 12px;
+  color: var(--ft-text-2);
+  white-space: nowrap;
+}
+.ft-cc-pair {
+  width: 220px;
+  max-width: 100%;
+}
+.ft-cc-bar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-left: auto;
+}
+</style>

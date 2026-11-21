@@ -70,10 +70,10 @@ const performanceData = computed(() => {
 });
 
 const options = [
-  { value: PerformanceOptions.performance, text: 'Performance' },
-  { value: PerformanceOptions.entryStats, text: 'Entries' },
-  { value: PerformanceOptions.exitStats, text: 'Exits' },
-  { value: PerformanceOptions.mixTagStats, text: 'Mix Tag' },
+  { value: PerformanceOptions.performance, text: 'Pairs' },
+  { value: PerformanceOptions.entryStats, text: 'Entry tags' },
+  { value: PerformanceOptions.exitStats, text: 'Exit reasons' },
+  { value: PerformanceOptions.mixTagStats, text: 'Mix tags' },
 ];
 
 function refreshSummary() {
@@ -97,38 +97,72 @@ onMounted(() => {
 </script>
 <template>
   <div>
-    <div class="mb-2">
-      <h3 class="me-auto text-2xl inline">Performance</h3>
-      <Button class="float-end" severity="secondary" @click="refreshSummary">
-        <template #icon>
-          <i-mdi-refresh />
-        </template>
+    <div class="ft-perf-bar">
+      <SelectButton
+        v-if="botStore.activeBot.botFeatures.hasAdvancedStats"
+        v-model="selectedOption"
+        :options="options"
+        :allow-empty="false"
+        aria-label="Group by"
+        option-label="text"
+        option-value="value"
+        size="small"
+        @change="refreshSummary"
+      ></SelectButton>
+      <Button
+        class="ms-auto"
+        severity="secondary"
+        size="small"
+        title="Refresh"
+        aria-label="Refresh"
+        @click="refreshSummary"
+      >
+        <template #icon><i-mdi-refresh /></template>
       </Button>
     </div>
-    <SelectButton
-      v-if="botStore.activeBot.botFeatures.hasAdvancedStats"
-      id="order-direction"
-      v-model="selectedOption"
-      :options="options"
-      :allow-empty="false"
-      option-label="text"
-      option-value="value"
+    <DataTable
       size="small"
-      @change="refreshSummary"
-    ></SelectButton>
-    <DataTable size="small" class="text-center" :value="performanceData">
+      :value="performanceData"
+      scrollable
+      scroll-height="420px"
+      removable-sort
+    >
+      <template #empty>No data.</template>
       <Column
-        v-for="field in performanceTable"
+        v-for="(field, idx) in performanceTable"
         :key="field.key"
         :field="field.key"
         :header="field.label"
+        sortable
+        :class="idx === 0 ? 'ft-mono' : 'ft-num'"
       >
         <template #body="slotProps">
-          {{
+          <span
+            v-if="field.key === 'profit' || field.key === 'profit_abs'"
+            :class="profitClass(slotProps.data[field.key])"
+            >{{ signOf(slotProps.data[field.key])
+            }}{{
+              field.formatter
+                ? field.formatter(slotProps.data[field.key])
+                : slotProps.data[field.key]
+            }}{{ field.key === 'profit' ? '%' : '' }}</span
+          >
+          <template v-else>{{
             field.formatter ? field.formatter(slotProps.data[field.key]) : slotProps.data[field.key]
-          }}
+          }}</template>
         </template>
       </Column>
     </DataTable>
   </div>
 </template>
+
+<style scoped>
+.ft-perf-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ft-border);
+}
+</style>

@@ -45,8 +45,8 @@ const profitAbs = computed<number | undefined>(() => {
 });
 const profitDesc = computed((): string => {
   let profit = `${modeDescs[props.mode]}: ${
-    profitRatio.value ? formatPercent(profitRatio.value) : ''
-  } (${profitAbs.value})`;
+    profitRatio.value ? formatSignedPercent(profitRatio.value, 3) : ''
+  } (${formatSigned(profitAbs.value, 8)})`;
   profit += `\nOpen since: ${timestampms(props.trade.open_timestamp)}`;
   return profit;
 });

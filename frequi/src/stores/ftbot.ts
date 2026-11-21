@@ -28,7 +28,6 @@ import type {
   ExitStats,
   ForceEnterPayload,
   ForceExitPayload,
-  FreqAIModelListResult,
   HyperoptLossListResponse,
   HyperoptLossObj,
   LockResponse,
@@ -82,6 +81,8 @@ export function createBotSubStore(botId: string, botName: string) {
         botStatusAvailable: false,
         isBotOnline: false,
         isBotLoggedIn: true,
+        /** Timestamp (ms) of the last successful data update - used to flag stale data */
+        lastUpdate: 0,
         autoRefresh: false,
         refreshing: false,
         versionState: '',
@@ -115,7 +116,6 @@ export function createBotSubStore(botId: string, botName: string) {
         historyStatus: LoadingStatus.not_loaded,
         historyTakesLonger: false,
         strategyList: [] as string[],
-        freqaiModelList: [] as string[],
         hyperoptLossList: [] as HyperoptLossObj[],
         exchangeList: [] as Exchange[],
         strategy: {} as StrategyResult | undefined,
@@ -334,6 +334,7 @@ export function createBotSubStore(botId: string, botName: string) {
               botTradeId: `${botId}__${t.trade_id}`,
             }));
             this.openTrades = openTrades;
+            this.lastUpdate = Date.now();
             if (this.selectedPair === '') {
               this.selectedPair = openTrades[0]?.pair || '';
             }
@@ -521,16 +522,6 @@ export function createBotSubStore(botId: string, botName: string) {
           return this.getStrategy(this.botState.strategy);
         }
       },
-      async getFreqAIModelList() {
-        try {
-          const { data } = await api.get<FreqAIModelListResult>('/freqaimodels');
-          this.freqaiModelList = data.freqaimodels;
-          return Promise.resolve(data);
-        } catch (error) {
-          console.error(error);
-          return Promise.reject(error);
-        }
-      },
       async getHyperoptLossList() {
         try {
           // Only available starting with 2.40
@@ -703,6 +694,7 @@ export function createBotSubStore(botId: string, botName: string) {
           const { data } = await api.get<BotState>('/show_config');
           this.botState = data;
           this.botStatusAvailable = true;
+          this.lastUpdate = Date.now();
           this.startWebSocket();
           if (this.isWebserverMode) {
             const { recoverBgJobs } = useBackgroundJob();

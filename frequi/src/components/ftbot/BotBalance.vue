@@ -72,77 +72,79 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <div class="flex flex-wrap flex-row mb-2 justify-end items-center">
-      <label class="text-xl ms-1 me-auto mb-0">{{ showBotOnly ? 'Bot' : 'Account' }} Balance</label>
-      <div class="flex flex-row gap-1">
-        <Button
-          v-if="canUseBotBalance"
-          severity="secondary"
-          :tooltip="!showBotOnly ? 'Showing Account balance' : 'Showing Bot balance'"
-          @click="showBotOnly = !showBotOnly"
-        >
-          <template #icon>
-            <i-mdi-robot v-if="showBotOnly" />
-            <i-mdi-bank v-else />
-          </template>
-        </Button>
-        <Button
-          severity="secondary"
-          :tooltip="!hideSmallBalances ? 'Hide small balances' : 'Show all balances'"
-          @click="hideSmallBalances = !hideSmallBalances"
-        >
-          <template #icon>
-            <i-mdi-eye-off v-if="hideSmallBalances" />
-            <i-mdi-eye v-else />
-          </template>
-        </Button>
-        <Button severity="secondary" @click="refreshBalance">
-          <template #icon>
-            <i-mdi-refresh />
-          </template>
-        </Button>
-      </div>
+  <div class="ft-balance">
+    <div class="ft-balance-bar">
+      <SelectButton
+        v-if="canUseBotBalance"
+        v-model="showBotOnly"
+        :options="[
+          { value: true, text: 'Bot' },
+          { value: false, text: 'Account' },
+        ]"
+        :allow-empty="false"
+        option-label="text"
+        option-value="value"
+        aria-label="Balance scope"
+        size="small"
+      />
+      <BaseCheckbox v-model="hideSmallBalances">Hide small balances</BaseCheckbox>
+      <Button
+        severity="secondary"
+        size="small"
+        class="ms-auto"
+        title="Refresh"
+        aria-label="Refresh"
+        @click="refreshBalance"
+      >
+        <template #icon><i-mdi-refresh /></template>
+      </Button>
     </div>
-    <BalanceChart v-if="balanceCurrencies" :currencies="chartValues" />
-    <div>
-      <p v-if="botStore.activeBot.balance.note">
-        <strong>{{ botStore.activeBot.balance.note }}</strong>
-      </p>
-      <DataTable :value="balanceCurrencies" footer>
+    <p v-if="botStore.activeBot.balance.note" class="ft-balance-note">
+      <i-mdi-information-outline aria-hidden="true" /> {{ botStore.activeBot.balance.note }}
+    </p>
+    <div class="ft-balance-grid">
+      <div class="ft-balance-chart">
+        <BalanceChart
+          v-if="balanceCurrencies && balanceCurrencies.length"
+          :currencies="chartValues"
+          :show-title="false"
+        />
+        <FtEmpty v-else title="No balance to show" />
+      </div>
+      <DataTable :value="balanceCurrencies" size="small" scrollable>
+        <template #empty>No balances.</template>
         <Column
-          v-for="field in tableFields"
+          v-for="(field, idx) in tableFields"
           :key="field.field"
           :field="field.field"
           :header="field.header"
+          :class="idx === 0 ? 'ft-mono' : 'ft-num'"
           ><template v-if="field.asCurrency" #body="{ data }">
             {{ formatCurrency(data[field.field]) }}
           </template></Column
         >
         <ColumnGroup type="footer">
           <Row>
-            <Column footer="Total" f />
-            <Column>
+            <Column footer="Total" />
+            <Column class="ft-num">
               <template #footer>
                 <span
-                  class="font-italic"
-                  :title="`Increase over initial capital of ${formatCurrency(
+                  :class="profitClass(botStore.activeBot.balance.starting_capital_ratio)"
+                  :title="`Change against the starting capital of ${formatCurrency(
                     botStore.activeBot.balance.starting_capital,
                   )} ${botStore.activeBot.balance.stake}`"
                 >
-                  {{ formatPercent(botStore.activeBot.balance.starting_capital_ratio) }}
+                  {{ formatSignedPercent(botStore.activeBot.balance.starting_capital_ratio, 2) }}
                 </span>
               </template>
             </Column>
-            <Column>
+            <Column class="ft-num">
               <template #footer>
-                <strong>
-                  {{
-                    showBotOnly && canUseBotBalance
-                      ? formatCurrency(botStore.activeBot.balance.total_bot)
-                      : formatCurrency(botStore.activeBot.balance.total)
-                  }}
-                </strong>
+                {{
+                  showBotOnly && canUseBotBalance
+                    ? formatCurrency(botStore.activeBot.balance.total_bot)
+                    : formatCurrency(botStore.activeBot.balance.total)
+                }}
               </template>
             </Column>
           </Row>
@@ -151,3 +153,44 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.ft-balance-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ft-border);
+}
+.ft-balance-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 18px;
+  color: var(--ft-warning);
+  font-size: 12px;
+  border-bottom: 1px solid var(--ft-border);
+}
+.ft-balance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: start;
+}
+.ft-balance-chart {
+  padding: 8px;
+  border-right: 1px solid var(--ft-border);
+  min-height: 240px;
+  height: 100%;
+}
+@media (max-width: 1000px) {
+  .ft-balance-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ft-balance-chart {
+    border-right: 0;
+    border-bottom: 1px solid var(--ft-border);
+  }
+}
+</style>

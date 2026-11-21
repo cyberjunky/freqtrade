@@ -79,3 +79,42 @@ export function formatDecimal(value: number | null): string {
     maximumFractionDigits: decimals,
   });
 }
+
+/**
+ * Sign prefix for a profit / loss value. Profit and loss always carry a sign.
+ */
+export function signOf(value: number | undefined | null): string {
+  if (!isNotUndefined(value) || value === 0 || Number.isNaN(value)) {
+    return '';
+  }
+  return value > 0 ? '+' : '';
+}
+
+/** Format a number with explicit sign (+1.23 / -1.23 / 0). */
+export function formatSigned(value: number | undefined | null, decimals = 3): string {
+  return isNotUndefined(value) ? `${signOf(value)}${formatNumber(value, decimals)}` : 'N/A';
+}
+
+/** Format a ratio as percent with explicit sign (+1.23% / -1.23% / 0.00%). */
+export function formatSignedPercent(value: number | undefined | null, decimals = 2): string {
+  return isNotUndefined(value) ? `${signOf(value)}${formatPercent(value, decimals)}` : 'N/A';
+}
+
+/** CSS class for a profit value: ft-pos / ft-neg / ft-dim (zero or unknown). */
+export function profitClass(value: number | undefined | null): string {
+  if (!isNotUndefined(value) || value === 0 || Number.isNaN(value)) {
+    return 'ft-dim';
+  }
+  return value > 0 ? 'ft-pos' : 'ft-neg';
+}
+
+/** Short human readable age ("12s", "4m", "3h", "2d") for a duration in ms. */
+export function formatAge(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}

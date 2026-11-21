@@ -28,14 +28,14 @@ test.describe('Backtesting', () => {
   test('Starts webserver mode', async ({ page }) => {
     await page.goto('/backtest');
 
-    await expect(page.locator('a', { hasText: 'Backtest' })).toBeInViewport();
-    await expect(page.getByText('Run backtest')).toBeInViewport();
+    await expect(page.getByRole('heading', { name: 'Backtesting', exact: true })).toBeInViewport();
+    await expect(page.getByRole('tab', { name: 'Run backtest' })).toBeInViewport();
     await expect(page.getByText('Strategy', { exact: true })).toBeInViewport();
 
     const strategySelect = page.locator('#strategy-select').getByRole('combobox');
     await expect(strategySelect).toBeVisible();
     await expect(strategySelect).toBeInViewport();
-    await page.locator('#strategy-select svg').click();
+    await page.locator('#strategy-select').click();
     await page.getByRole('option', { name: 'SampleStrategy' }).click();
 
     const option = page.getByRole('combobox', { name: 'SampleStrategy' });

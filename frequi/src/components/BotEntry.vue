@@ -39,50 +39,94 @@ const autoRefreshLoc = computed({
 </script>
 
 <template>
-  <div v-if="bot" class="flex items-center justify-between w-full">
-    <span class="me-2">{{ bot.botName || bot.botId }}</span>
+  <div v-if="bot" class="ft-botentry">
+    <span class="ft-botentry-name">{{ bot.botName || bot.botId }}</span>
+    <FtState :state="botUiState(selectedBotStore)" />
+    <FtMode :mode="botUiMode(selectedBotStore)" />
+    <span class="ft-botentry-url ft-mono ft-dim">{{ bot.botUrl }}</span>
 
-    <div class="flex items-center gap-2">
-      <div class="flex items-center">
-        <ToggleSwitch v-model="autoRefreshLoc" class="mr-2" />
-        <div
-          v-if="selectedBotStore.isBotLoggedIn"
-          :title="selectedBotStore.isBotOnline ? 'Online' : 'Offline'"
-        >
-          <i-mdi-circle
-            class="mx-1"
-            :class="selectedBotStore.isBotOnline ? 'text-green-500' : 'text-red-500'"
-          />
-        </div>
-        <div v-else title="Login info expired, please login again.">
-          <i-mdi-cancel class="text-red-500 mx-1" />
-        </div>
-      </div>
-
-      <div v-if="!noButtons" class="flex items-center gap-1">
+    <div class="ft-botentry-actions">
+      <label class="ft-botentry-refresh" title="Auto-refresh this bot">
+        <ToggleSwitch v-model="autoRefreshLoc" aria-label="Auto-refresh" />
+        <span>Auto-refresh</span>
+      </label>
+      <FtBadge
+        v-if="!selectedBotStore.isBotLoggedIn"
+        kind="bad"
+        title="Login info expired, please login again."
+        >LOGIN EXPIRED</FtBadge
+      >
+      <template v-if="!noButtons">
         <Button
           v-if="selectedBotStore.isBotLoggedIn"
           size="small"
           severity="secondary"
-          title="Edit bot"
-          @click="$emit('edit')"
+          title="Rename bot"
+          aria-label="Rename bot"
+          @click.stop="$emit('edit')"
         >
-          <i-mdi-pencil />
+          <template #icon><i-mdi-pencil /></template>
         </Button>
         <Button
           v-else
           size="small"
           severity="secondary"
-          title="Login again"
-          @click="$emit('editLogin')"
+          label="Login again"
+          @click.stop="$emit('editLogin')"
         >
-          <i-mdi-login />
+          <template #icon><i-mdi-login /></template>
         </Button>
-        <Button size="small" severity="secondary" title="Delete bot" @click="removeBotQuestion">
-          <i-mdi-delete />
+        <Button
+          size="small"
+          severity="danger"
+          title="Remove bot (logout)"
+          aria-label="Remove bot"
+          @click.stop="removeBotQuestion"
+        >
+          <template #icon><i-mdi-delete /></template>
         </Button>
-      </div>
+      </template>
     </div>
     <MessageBox ref="msgBox" />
   </div>
 </template>
+
+<style scoped>
+.ft-botentry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  width: 100%;
+  min-width: 0;
+}
+.ft-botentry-name {
+  font-weight: 600;
+}
+.ft-botentry-url {
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.ft-botentry-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.ft-botentry-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ft-text-2);
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  .ft-botentry-refresh span {
+    display: none;
+  }
+}
+</style>

@@ -1,0 +1,152 @@
+/*
+  Design tokens - the ONE place colours, type and shape are defined.
+
+  Dark is the default. Light is applied with the `ft-light-theme` class on <html>
+  (dark additionally carries `dark ft-dark-theme`, see composables/theme.ts).
+  The selectors are class based (not only :root) so a probe element can read
+  either theme's values from JS (see theme/tokens.ts -> used for ECharts).
+
+  Everything else (Tailwind theme variables, the PrimeVue preset, ECharts
+  themes, component styles) references these variables - never literal colours.
+*/
+
+:root,
+.ft-dark-theme {
+  color-scheme: dark;
+
+  --ft-page: #0b0e12;
+  --ft-panel: #12161c;
+  --ft-text: #e7ebf0;
+  --ft-text-2: #9ba5b3;
+  --ft-muted: #7b8594;
+  --ft-primary: #4c8dff;
+  --ft-primary-hover: #6aa0ff;
+  --ft-on-primary: #ffffff;
+  --ft-warning: #f5a524;
+  --ft-success: #5fd68a;
+  --ft-danger: #ff6159;
+  --ft-danger-solid: #d93a32;
+  --ft-border: #242b35;
+  --ft-grid: #1c222b;
+  --ft-row-alt: #0e1217;
+  --ft-selected: #1c2c4a;
+  --ft-danger-bg: #3a1d1d;
+  --ft-success-bg: rgba(95, 214, 138, 0.14);
+  --ft-warning-bg: rgba(245, 165, 36, 0.16);
+  --ft-tag-bg: rgba(76, 141, 255, 0.14);
+  --ft-tag-text: #b9d3ff;
+  --ft-hover: rgba(140, 150, 160, 0.1);
+  --ft-pos: #3fcf8e;
+  --ft-neg: #ff6159;
+  --ft-idle: #4a5563;
+  --ft-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --ft-mask: rgba(4, 6, 9, 0.62);
+
+  /* Chart series, fixed order */
+  --ft-series-1: #3987e5;
+  --ft-series-2: #d95926;
+  --ft-series-3: #199e70;
+  --ft-series-4: #c98500;
+  --ft-series-5: #d55181;
+  --ft-series-wash: rgba(57, 135, 229, 0.12);
+
+  /* Neutral ramp (0 = lightest ... 950 = darkest) for legacy surface-* utilities */
+  --ft-s-0: #ffffff;
+  --ft-s-50: #f3f5f8;
+  --ft-s-100: #e7ebf0;
+  --ft-s-200: #c9d0da;
+  --ft-s-300: #b0b9c5;
+  --ft-s-400: #9ba5b3;
+  --ft-s-500: #7b8594;
+  --ft-s-600: #4a5563;
+  --ft-s-700: #242b35;
+  --ft-s-800: #1a2029;
+  --ft-s-900: #12161c;
+  --ft-s-950: #0b0e12;
+}
+
+.ft-light-theme {
+  color-scheme: light;
+
+  --ft-page: #eef1f4;
+  --ft-panel: #ffffff;
+  --ft-text: #1a1f26;
+  --ft-text-2: #5b6573;
+  --ft-muted: #7a8492;
+  --ft-primary: #2457c5;
+  --ft-primary-hover: #1c469f;
+  --ft-on-primary: #ffffff;
+  --ft-warning: #b26a00;
+  --ft-success: #1e7a44;
+  --ft-danger: #d93a32;
+  --ft-danger-solid: #c9302a;
+  --ft-border: #d5dbe2;
+  --ft-grid: #e8ecf0;
+  --ft-row-alt: #fafbfc;
+  --ft-selected: #e3edff;
+  --ft-danger-bg: #fde7e5;
+  --ft-success-bg: #e2f4e9;
+  --ft-warning-bg: #fdf0d9;
+  --ft-tag-bg: #e8effc;
+  --ft-tag-text: #1f4aa8;
+  --ft-hover: rgba(16, 24, 40, 0.045);
+  --ft-pos: #13804f;
+  --ft-neg: #d93a32;
+  --ft-idle: #9aa3ad;
+  --ft-shadow: 0 8px 30px rgba(16, 24, 40, 0.18);
+  --ft-mask: rgba(16, 24, 40, 0.4);
+
+  --ft-series-1: #2a78d6;
+  --ft-series-2: #eb6834;
+  --ft-series-3: #1baf7a;
+  --ft-series-4: #eda100;
+  --ft-series-5: #e87ba4;
+  --ft-series-wash: rgba(42, 120, 214, 0.12);
+
+  --ft-s-0: #ffffff;
+  --ft-s-50: #fafbfc;
+  --ft-s-100: #eef1f4;
+  --ft-s-200: #e8ecf0;
+  --ft-s-300: #d5dbe2;
+  --ft-s-400: #9aa3ad;
+  --ft-s-500: #7a8492;
+  --ft-s-600: #5b6573;
+  --ft-s-700: #3a424d;
+  --ft-s-800: #262c35;
+  --ft-s-900: #1a1f26;
+  --ft-s-950: #0f1318;
+}
+
+:root {
+  /* Type */
+  --ft-font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ft-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+  --ft-font-size: 13px;
+  --ft-line-height: 1.45;
+
+  /* Shape and density */
+  --ft-radius-panel: 6px;
+  --ft-radius-control: 4px;
+  --ft-radius-badge: 3px;
+  --ft-h-control: 30px;
+  --ft-h-control-sm: 24px;
+  --ft-h-tab: 28px;
+  --ft-gap: 14px;
+  --ft-pad-panel: 16px 18px;
+  --ft-topbar-h: 56px;
+  --ft-statusbar-h: 26px;
+  --ft-container: 1500px;
+
+  /* Primary ramp, derived from the tokens above (legacy primary-* utilities) */
+  --ft-p-50: color-mix(in srgb, var(--ft-primary) 8%, var(--ft-panel));
+  --ft-p-100: color-mix(in srgb, var(--ft-primary) 16%, var(--ft-panel));
+  --ft-p-200: color-mix(in srgb, var(--ft-primary) 30%, var(--ft-panel));
+  --ft-p-300: color-mix(in srgb, var(--ft-primary) 55%, var(--ft-panel));
+  --ft-p-400: color-mix(in srgb, var(--ft-primary) 80%, var(--ft-panel));
+  --ft-p-500: var(--ft-primary);
+  --ft-p-600: var(--ft-primary);
+  --ft-p-700: color-mix(in srgb, var(--ft-primary) 70%, var(--ft-panel));
+  --ft-p-800: color-mix(in srgb, var(--ft-primary) 30%, var(--ft-panel));
+  --ft-p-900: color-mix(in srgb, var(--ft-primary) 18%, var(--ft-panel));
+  --ft-p-950: color-mix(in srgb, var(--ft-primary) 10%, var(--ft-panel));
+}

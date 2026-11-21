@@ -57,15 +57,16 @@ test.describe('Login', () => {
     });
     const loginButton = await page.locator('button[type=submit]');
     await expect(loginButton).toBeVisible();
-    await expect(loginButton).toContainText('Submit');
+    await expect(loginButton).toContainText('Connect');
     await Promise.all([loginButton.click(), page.waitForResponse('**/api/v1/token/login')]);
 
-    await expect(page.getByText('TestBot', { exact: true })).toBeVisible();
-    await expect(page.locator('button', { hasText: 'Add new Bot' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /TestBot/ })).toBeVisible();
+    await expect(page.locator('button', { hasText: 'Add bot' })).toBeVisible();
     await expect(page.locator('button', { hasText: 'Login' })).not.toBeVisible();
     // Test logout
-    await page.getByRole('button', { name: 'FT' }).click();
+    await page.getByRole('button', { name: 'Account' }).click();
     await page.getByRole('menuitem', { name: 'Logout' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Logout' }).click();
     // Assert we're logged out again
     await expect(page.locator('button', { hasText: 'Login' })).toBeVisible();
   });
@@ -87,7 +88,7 @@ test.describe('Login', () => {
     });
     const loginButton = await page.locator('button[type=submit]');
     await expect(loginButton).toBeVisible();
-    await expect(loginButton).toContainText('Submit');
+    await expect(loginButton).toContainText('Connect');
     await Promise.all([loginButton.click(), page.waitForResponse('**/api/v1/token/login')]);
     await expect(page.getByText('Login failed.')).toBeVisible();
     await expect(page.getByText('API Url required')).toBeVisible();
@@ -111,7 +112,7 @@ test.describe('Login', () => {
 
     const loginButton = await page.locator('button[type=submit]');
     await expect(loginButton).toBeVisible();
-    await expect(loginButton).toContainText('Submit');
+    await expect(loginButton).toContainText('Connect');
     await expect(page.getByText('Name and Password are required.')).not.toBeVisible();
     await expect(page.getByText('Connected to bot, however Login failed,')).not.toBeVisible();
     await expect(page.getByText('Invalid Password')).not.toBeVisible();

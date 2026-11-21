@@ -38,23 +38,20 @@ function confirmInput(run_id: string, result: BacktestResultInMemory) {
 
 <template>
   <div class="flex flex-col items-stretch">
-    <h3 class="font-bold text-2xl">Available results:</h3>
-    <ul
-      class="ms-2 divide-y border-x border-surface-500 rounded-sm border-y divide-solid divide-surface-500"
-    >
+    <ul class="divide-y divide-solid divide-line border border-line rounded-md overflow-hidden">
       <li
         v-for="[key, result] in Object.entries(backtestHistory)"
         :key="key"
         button
         :class="{
-          'bg-primary dark:border-primary text-primary-contrast': key === selectedBacktestResultKey,
+          'bg-selected shadow-[inset_2px_0_0_var(--ft-primary)]': key === selectedBacktestResultKey,
         }"
-        class="flex justify-between items-center py-1 px-1"
+        class="flex justify-between items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-hover"
         @click="setBacktestResult(key)"
       >
         <template v-if="!result.metadata.editing">
           <BacktestResultSelectEntry :backtest-result="result" :can-use-modify="canUseModify" />
-          <div class="flex">
+          <div class="flex gap-1">
             <Button
               v-if="canUseModify"
               class="flex-nowrap"

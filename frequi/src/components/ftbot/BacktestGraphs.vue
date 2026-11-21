@@ -19,25 +19,24 @@ const { state: walletData } = useAsyncState(
 );
 </script>
 <template>
-  <div class="text-center flex-fill flex flex-col h-full gap-1">
-    <TradesLogChart :trades="trades" class="grow chart-equal-height" />
-    <TradeDurationChart class="grow chart-equal-height" :trades="trades" :show-title="true" />
-    <CumProfitChart :trades="trades" class="grow chart-equal-height" :show-title="true" />
-    <WalletHistoryChart
-      v-if="walletData"
-      :wallet-data="walletData"
-      class="grow chart-equal-height"
-    />
-    <MarketChangeChart
-      v-if="marketChangeData"
-      :market-change-data="marketChangeData"
-      class="grow chart-equal-height"
-    />
-    <ProfitDistributionChart class="grow chart-equal-height" :trades="trades" :show-title="true" />
+  <div class="ft-grid-2">
+    <FtPanel title="Trade profits" flush body-height="320px">
+      <TradesLogChart :trades="trades" :show-title="false" />
+    </FtPanel>
+    <FtPanel title="Trade durations" flush body-height="320px">
+      <TradeDurationChart :trades="trades" :show-title="false" />
+    </FtPanel>
+    <FtPanel title="Cumulative profit" flush body-height="320px">
+      <CumProfitChart :trades="trades" :show-title="false" />
+    </FtPanel>
+    <FtPanel v-if="walletData" title="Wallet balance" flush body-height="320px">
+      <WalletHistoryChart :wallet-data="walletData" :show-title="false" />
+    </FtPanel>
+    <FtPanel v-if="marketChangeData" title="Market change" flush body-height="320px">
+      <MarketChangeChart :market-change-data="marketChangeData" />
+    </FtPanel>
+    <FtPanel title="Profit distribution" flush body-height="320px">
+      <ProfitDistributionChart :trades="trades" :show-title="false" />
+    </FtPanel>
   </div>
 </template>
-<style scoped lang="css">
-.chart-equal-height {
-  min-height: 300px !important;
-}
-</style>

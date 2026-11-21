@@ -10,9 +10,9 @@ defineProps<{
 </script>
 
 <template>
-  <div class="text-start grid grid-cols-[repeat(auto-fit,minmax(500px,1fr))] gap-4 px-2">
+  <div class="ft-td-grid">
     <div class="">
-      <h5 class="detail-header">General</h5>
+      <h3 class="ft-title detail-header">General</h3>
       <ValuePair description="Trade Id">{{ trade.trade_id }}</ValuePair>
       <ValuePair description="Pair">{{ trade.pair }}</ValuePair>
 
@@ -84,7 +84,7 @@ defineProps<{
       </details>
     </div>
     <div class="mt-2 lg:mt-0">
-      <h5 class="detail-header">Stoploss</h5>
+      <h3 class="ft-title detail-header">Stoploss</h3>
       <ValuePair description="Stoploss">
         {{ formatPercent(trade.stop_loss_ratio) }} |
         {{ formatPrice(trade.stop_loss_abs) }}
@@ -115,7 +115,7 @@ defineProps<{
         {{ timestampms(trade.stoploss_last_update_timestamp) }}
       </ValuePair>
       <div v-if="trade.trading_mode !== undefined && trade.trading_mode !== 'spot'">
-        <h5 class="detail-header">Futures/Margin</h5>
+        <h3 class="ft-title detail-header">Futures/Margin</h3>
         <ValuePair description="Direction">
           {{ trade.is_short ? 'short' : 'long' }} - {{ trade.leverage }}x
         </ValuePair>
@@ -134,7 +134,7 @@ defineProps<{
         <div
           v-for="(order, key) in trade.orders"
           :key="key"
-          class="flex items-center gap-1 2"
+          class="flex flex-wrap items-center gap-1 ft-mono text-[12px] py-0.5"
           :title="`${order.ft_order_side} ${order.order_type} order for ${formatPriceCurrency(
             order.amount,
             trade.base_currency ?? '',
@@ -166,10 +166,16 @@ defineProps<{
   </div>
 </template>
 <style scoped>
-@reference '../../styles/tailwind.css';
-
+.ft-td-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 8px 28px;
+  font-size: 12.5px;
+}
 .detail-header {
-  @apply text-xl font-semibold border-b pb-1 w-full block mb-1;
+  margin: 4px 0 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ft-border);
 }
 .color-up {
   color: v-bind('colorStore.colorUp');

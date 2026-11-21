@@ -172,10 +172,10 @@ function generateChart(initial = false) {
         animation: initial,
         step: 'end',
         lineStyle: {
-          color: settingsStore.chartTheme === 'dark' ? '#c2c2c2' : 'black',
+          color: themeTokens['series-1'],
         },
         itemStyle: {
-          color: settingsStore.chartTheme === 'dark' ? '#c2c2c2' : 'black',
+          color: themeTokens['series-1'],
         },
         encode: {
           x: 'date',
@@ -194,9 +194,9 @@ function generateChart(initial = false) {
   //     animation: true,
   //     step: 'end',
   //     lineStyle: {
-  //       color: settingsStore.chartTheme === 'dark' ? '#c2c2c2' : 'black',
+  //       color: themeTokens['series-1'],
   //     },
-  //     itemStylesettingsStore.chartTheme === 'dark' ? '#c2c2c2' : 'black',
+  //     itemStylethemeTokens['series-1'],
   //     },
   //     // symbol: 'none',
   //   });
@@ -228,9 +228,7 @@ const cumProfitChartOptions: ComputedRefWithControl<EChartsOption> = computedWit
         },
         axisPointer: {
           type: 'line',
-          label: {
-            backgroundColor: '#6a7985',
-          },
+          label: {},
         },
       },
       legend: {

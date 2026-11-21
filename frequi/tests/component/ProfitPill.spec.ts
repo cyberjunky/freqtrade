@@ -13,8 +13,9 @@ describe('ProfitPill.vue', () => {
       },
     });
     expect(wrapper.find('div').classes()).toContain('profit-pill-profit');
-    expect(wrapper.find('div').text()).toContain('5.10%');
-    expect(wrapper.find('div').text()).toContain('(0.1)');
+    // Profit always carries an explicit sign
+    expect(wrapper.find('div').text()).toContain('+5.10%');
+    expect(wrapper.find('div').text()).toContain('(+0.1)');
     expect(wrapper.find('span').element.title).toBe('USDT');
   });
   it('Shows a Red pill with positive profits', () => {
@@ -60,7 +61,7 @@ describe('ProfitPill.vue', () => {
 
     expect(wrapper.get('div').classes()).toContain('profit-pill-profit');
     expect(wrapper.get('div').text()).not.toContain('%');
-    expect(wrapper.get('div').text()).toContain('223');
+    expect(wrapper.get('div').text()).toContain('+223');
     expect(wrapper.get('span').element.title).toBe('USDT');
   });
   it('Shows a pill without profits.', () => {

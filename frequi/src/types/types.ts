@@ -179,10 +179,6 @@ export interface BotState {
   max_entry_position_adjustment?: number;
 }
 
-export interface FreqAIModelListResult {
-  freqaimodels: string[];
-}
-
 export interface HyperoptLossObj {
   name: string;
   description: string;

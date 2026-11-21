@@ -57,7 +57,8 @@ test.describe('Download Data View', () => {
 
     page.goto('/');
 
-    const downloadData = page.locator('a', { hasText: 'Download Data' });
+    await page.getByRole('button', { name: 'Tools' }).click();
+    const downloadData = page.getByRole('menuitem', { name: 'Download data' });
     await Promise.all([downloadData.click(), page.waitForResponse('**/exchanges')]);
 
     await page.getByRole('button', { name: 'All USDT Pairs' }).click();
@@ -95,7 +96,8 @@ test.describe('Download Data View', () => {
 
     page.goto('/');
 
-    const downloadData = page.locator('a', { hasText: 'Download Data' });
+    await page.getByRole('button', { name: 'Tools' }).click();
+    const downloadData = page.getByRole('menuitem', { name: 'Download data' });
     await Promise.all([downloadData.click(), page.waitForResponse('**/exchanges')]);
 
     await page.getByRole('button', { name: 'All USDT Pairs' }).click();

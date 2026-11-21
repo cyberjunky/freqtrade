@@ -39,21 +39,18 @@ function rowClick(row) {
 
 <template>
   <div>
-    <Button
-      class="float-end"
-      title="Refresh"
-      aria-label="Refresh"
-      variant="outlined"
-      severity="secondary"
-      @click="botStore.activeBot.getBacktestHistory"
-    >
-      <i-mdi-refresh />
-    </Button>
-    <p>
-      Load Historic results from disk. You can click on multiple results to load all of them into
-      freqUI.
-    </p>
-    <div v-if="botStore.activeBot.backtestHistoryList.length > 0" class="flex align-center">
+    <div class="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-line">
+      <span class="ft-hint grow"
+        >Load stored results from disk. Click several rows to load all of them.</span
+      >
+      <Button
+        title="Refresh"
+        aria-label="Refresh"
+        size="small"
+        severity="secondary"
+        @click="botStore.activeBot.getBacktestHistory"
+        ><template #icon><i-mdi-refresh /></template
+      ></Button>
       <InputText
         id="trade-filter"
         v-model="filterText"
@@ -61,21 +58,19 @@ function rowClick(row) {
         size="small"
         placeholder="Filter results"
         title="Filter results"
+        aria-label="Filter results"
       />
     </div>
     <DataTable
       v-if="botStore.activeBot.backtestHistoryList.length > 0"
-      class="mt-2"
-      responsive
       size="small"
       scrollable
       scroll-height="50rem"
       :virtual-scroller-options="{ itemSize: 46 }"
-      show-gridlines
       :value="filteredList"
       @row-click="rowClick"
     >
-      <Column field="strategy" header="Strategy2"></Column>
+      <Column field="strategy" header="Strategy"></Column>
       <Column field="timeframe" header="Details">
         <template #body="{ data }">
           <strong>{{ data.timeframe }}</strong>

@@ -20,29 +20,27 @@ const backtestResultSettings = computed(() => {
 
 <template>
   <div class="px-0 w-full">
-    <div class="flex justify-center">
-      <h3 class="font-bold text-2xl mb-2">
-        Backtest-result for {{ backtestResult.strategy_name }}
-      </h3>
-    </div>
+    <h2 class="ft-title mb-3">
+      Backtest result for <span class="ft-mono">{{ backtestResult.strategy_name }}</span>
+    </h2>
 
-    <div class="flex flex-col text-start ms-0 me-2 gap-2">
-      <div class="flex flex-col xl:flex-row">
-        <div class="px-0 px-xl-0 pe-xl-1 grow">
-          <DraggableContainer header="Strategy settings">
+    <div class="ft-stack">
+      <div class="ft-grid-2">
+        <div class="min-w-0">
+          <FtPanel title="Strategy settings" flush>
             <DataTable size="small" :value="backtestResultSettings">
               <Column field="setting" header="Setting"></Column>
-              <Column field="value" header="Value"></Column>
+              <Column field="value" header="Value" class="ft-num"></Column>
             </DataTable>
-          </DraggableContainer>
+          </FtPanel>
         </div>
-        <div class="px-0 xl:px-0 pt-2 xl:pt-0 xl:ps-1 grow">
-          <DraggableContainer header="Metrics">
+        <div class="min-w-0">
+          <FtPanel title="Metrics" flush>
             <DataTable size="small" borderless :value="backtestResultStats">
               <Column field="metric" header="Metric" />
-              <Column field="value" header="Value" />
+              <Column field="value" header="Value" class="ft-num" />
             </DataTable>
-          </DraggableContainer>
+          </FtPanel>
         </div>
       </div>
       <BacktestResultTablePer
@@ -77,18 +75,18 @@ const backtestResultSettings = computed(() => {
         key-header="Pair"
         :stake-currency-decimals="backtestResult.stake_currency_decimals"
       />
-      <DraggableContainer v-if="backtestResult.periodic_breakdown" header="Periodic breakdown">
+      <FtPanel v-if="backtestResult.periodic_breakdown" title="Periodic breakdown" flush>
         <BacktestResultPeriodBreakdown :periodic-breakdown="backtestResult.periodic_breakdown">
         </BacktestResultPeriodBreakdown>
-      </DraggableContainer>
+      </FtPanel>
 
-      <DraggableContainer header="Single trades">
+      <FtPanel title="Single trades" flush>
         <TradeList
           :trades="backtestResult.trades"
           :show-filter="true"
           :stake-currency="backtestResult.stake_currency"
         />
-      </DraggableContainer>
+      </FtPanel>
     </div>
   </div>
 </template>

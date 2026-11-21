@@ -28,7 +28,6 @@ export interface PairHistoryPayload extends ExchangeSelectPayload {
   timeframe: string;
   timerange: string;
   strategy: string;
-  freqaimodel?: string;
   columns?: string[];
   live_mode?: boolean;
 }

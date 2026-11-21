@@ -67,50 +67,53 @@ const metrics = computed(() =>
 );
 </script>
 <template>
-  <DraggableContainer>
-    <template #header>
-      <div class="flex flex-row w-full justify-between items-center">
-        {{ title }}
-        <div>
-          Shown metrics:
-          <MultiSelect
-            id="backtestMetrics"
-            v-model="settingsStore.backtestAdditionalMetrics"
-            :options="availableBacktestMetrics"
-            option-label="header"
-            option-value="field"
-            size="small"
-          />
-        </div>
-      </div>
+  <FtPanel :title="title" flush>
+    <template #actions>
+      <span class="ft-hint">Shown metrics</span>
+      <MultiSelect
+        id="backtestMetrics"
+        v-model="settingsStore.backtestAdditionalMetrics"
+        :options="availableBacktestMetrics"
+        option-label="header"
+        option-value="field"
+        size="small"
+        aria-label="Shown metrics"
+        :max-selected-labels="2"
+      />
     </template>
-    <DataTable size="small" hover stacked="sm" :value="tableItems">
+    <DataTable size="small" scrollable :value="tableItems">
       <Column v-for="col in perTagReason" :key="col.key" :field="col.key" :header="col.label">
         <template #body="{ data }">
           {{ col.formatter(data['key'], data) }}
         </template>
       </Column>
-      <Column field="trades" header="Trades"></Column>
-      <Column field="profit_mean" header="Avg Profit %">
+      <Column class="ft-num" field="trades" header="Trades"></Column>
+      <Column class="ft-num" field="profit_mean" header="Avg Profit %">
         <template #body="{ data, field }">
           {{ formatPercent(data[field as string], 2) }}
         </template>
       </Column>
-      <Column field="profit_total_abs" :header="`Tot Profit ${props.stakeCurrency}`">
+      <Column class="ft-num" field="profit_total_abs" :header="`Tot Profit ${props.stakeCurrency}`">
         <template #body="{ data, field }">
           {{ formatPrice(data[field as string], props.stakeCurrencyDecimals) }}
         </template>
       </Column>
-      <Column field="profit_total" header="Tot Profit %">
+      <Column class="ft-num" field="profit_total" header="Tot Profit %">
         <template #body="{ data, field }">
           {{ formatPercent(data[field as string], 2) }}
         </template>
       </Column>
-      <Column field="wins" header="Wins"></Column>
-      <Column field="draws" header="Draws"></Column>
-      <Column field="losses" header="Losses"></Column>
+      <Column class="ft-num" field="wins" header="Wins"></Column>
+      <Column class="ft-num" field="draws" header="Draws"></Column>
+      <Column class="ft-num" field="losses" header="Losses"></Column>
 
-      <Column v-for="col in metrics" :key="col.field" :field="col.field" :header="col.header">
+      <Column
+        v-for="col in metrics"
+        :key="col.field"
+        class="ft-num"
+        :field="col.field"
+        :header="col.header"
+      >
         <template #body="{ data, field }">
           {{
             col.is_ratio
@@ -120,5 +123,5 @@ const metrics = computed(() =>
         </template>
       </Column>
     </DataTable>
-  </DraggableContainer>
+  </FtPanel>
 </template>

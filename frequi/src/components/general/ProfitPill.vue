@@ -1,4 +1,8 @@
 <script setup lang="ts">
+/**
+ * Profit value: "+1.23% (+0.456)". Always carries a sign and is coloured pos / neg -
+ * the colour is never the only signal.
+ */
 const props = defineProps<{
   profitRatio?: number | null;
   profitAbs?: number;
@@ -15,14 +19,18 @@ const isProfitable = computed<boolean | null>(() => {
   );
 });
 
+const isZero = computed(
+  () => isProfitable.value === false && !props.profitRatio && !props.profitAbs,
+);
+
 const profitString = computed((): string => {
   if (props.profitRatio !== undefined && props.profitAbs !== undefined) {
-    return `(${formatPrice(props.profitAbs, 3)})`;
+    return `(${formatSigned(props.profitAbs, 3)})`;
   } else if (props.profitAbs !== undefined) {
     if (props.stakeCurrency !== undefined) {
-      return `${formatPriceCurrency(props.profitAbs, props.stakeCurrency, 3)}`;
+      return `${signOf(props.profitAbs)}${formatPriceCurrency(props.profitAbs, props.stakeCurrency, 3)}`;
     } else {
-      return `${formatPrice(props.profitAbs, 3)}`;
+      return formatSigned(props.profitAbs, 3);
     }
   }
   return '';
@@ -31,34 +39,47 @@ const profitString = computed((): string => {
 
 <template>
   <div
-    class="flex justify-between items-center ps-2 pe-1 rounded-sm border-2 border-solid"
+    class="ft-profit-pill ft-mono"
     :class="{
       'profit-pill-profit': isProfitable === true,
       'profit-pill': isProfitable === false,
+      'is-zero': isZero,
       'border-surface-500': isProfitable === null,
     }"
     :title="profitDesc"
   >
-    <ProfitSymbol :profit="profitRatio || profitAbs" />
-
-    <div class="flex justify-center items-center grow">
-      {{ profitRatio !== undefined ? formatPercent(profitRatio, 2) : '' }}
-      <span
-        v-if="profitString"
-        class="ms-1"
-        :class="profitRatio ? 'small' : ''"
-        :title="stakeCurrency"
-        >{{ profitString }}</span
-      >
-    </div>
+    {{ isDefined(profitRatio) ? formatSignedPercent(profitRatio, 2) : '' }}
+    <span
+      v-if="profitString"
+      :class="{ 'ft-profit-abs': isDefined(profitRatio) }"
+      :title="stakeCurrency"
+      >{{ profitString }}</span
+    >
+    <template v-if="isProfitable === null">-</template>
   </div>
 </template>
 
 <style scoped lang="css">
+.ft-profit-pill {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+  border: 0;
+  color: var(--ft-muted);
+}
 .profit-pill {
-  border-color: var(--color-loss);
+  color: var(--ft-neg);
 }
 .profit-pill-profit {
-  border-color: var(--color-profit);
+  color: var(--ft-pos);
+}
+.profit-pill.is-zero {
+  color: var(--ft-muted);
+}
+.ft-profit-abs {
+  font-size: 0.92em;
+  opacity: 0.85;
 }
 </style>

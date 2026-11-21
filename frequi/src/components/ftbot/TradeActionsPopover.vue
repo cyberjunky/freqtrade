@@ -55,13 +55,14 @@ const popover = ref<InstanceType<typeof Popover> | null>(null);
   <div>
     <Button
       :id="`btn-actions-${id}`"
-      class="btn-xs"
       size="small"
       severity="secondary"
-      title="Actions"
-      @click="popover?.toggle"
+      label="Actions"
+      :title="`Actions for ${trade.pair}`"
+      aria-haspopup="true"
+      @click.stop="popover?.toggle($event)"
     >
-      <i-mdi-gesture-tap />
+      <template #icon><i-mdi-dots-vertical /></template>
     </Button>
     <Popover
       ref="popover"
