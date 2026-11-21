@@ -1,4 +1,4 @@
-FROM freqtradeorg/freqtrade:develop_freqairl
+FROM freqtradeorg/freqtrade:develop
 
 USER root
 # Install dependencies

@@ -107,7 +107,7 @@ def test_check_exchange(default_conf, caplog) -> None:
 
     # Test no exchange...
     default_conf.get("exchange").update({"name": ""})
-    default_conf["runmode"] = RunMode.PLOT
+    default_conf["runmode"] = RunMode.UTIL_NO_EXCHANGE
     assert check_exchange(default_conf)
 
     # Test no exchange...

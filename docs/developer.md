@@ -443,7 +443,6 @@ This documents some decisions taken for the CI Pipeline.
 
 * CI runs on all OS variants, Linux (ubuntu), macOS and Windows.
 * Docker images are build for the branches `stable` and `develop`, and are built as multiarch builds, supporting multiple platforms via the same tag.
-* Docker images containing Plot dependencies are also available as `stable_plot` and `develop_plot`.
 * Docker images contain a file, `/freqtrade/freqtrade_commit` containing the commit this image is based of.
 * Full docker image rebuilds are run once a week via schedule.
 * Deployments run on ubuntu.

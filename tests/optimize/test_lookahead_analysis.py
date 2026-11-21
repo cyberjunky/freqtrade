@@ -14,12 +14,6 @@ from freqtrade.util import get_progress_tracker
 from tests.conftest import EXMS, get_args, log_has_re, patch_exchange
 
 
-IGNORE_BIASED_INDICATORS_CAPTION = (
-    "Any indicators in 'biased_indicators' which are used within "
-    "set_freqai_targets() can be ignored."
-)
-
-
 @pytest.fixture
 def lookahead_conf(default_conf_usdt, tmp_path):
     default_conf_usdt["user_data_dir"] = tmp_path
@@ -151,58 +145,6 @@ def test_lookahead_helper_start(lookahead_conf, mocker, caplog) -> None:
     assert log_has_re("Using configured order_types, skipping order_types override.", caplog)
     assert "order_types" not in single_mock.call_args_list[0][0][0]
     assert "price_side" not in single_mock.call_args_list[0][0][0]["exit_pricing"]
-
-
-@pytest.mark.parametrize(
-    "indicators, expected_caption_text",
-    [
-        (
-            ["&indicator1", "indicator2"],
-            IGNORE_BIASED_INDICATORS_CAPTION,
-        ),
-        (
-            ["indicator1", "&indicator2"],
-            IGNORE_BIASED_INDICATORS_CAPTION,
-        ),
-        (
-            ["&indicator1", "&indicator2"],
-            IGNORE_BIASED_INDICATORS_CAPTION,
-        ),
-        (["indicator1", "indicator2"], None),
-        ([], None),
-    ],
-    ids=(
-        "First of two biased indicators starts with '&'",
-        "Second of two biased indicators starts with '&'",
-        "Both biased indicators start with '&'",
-        "No biased indicators start with '&'",
-        "Empty biased indicators list",
-    ),
-)
-def test_lookahead_helper_start__caption_based_on_indicators(
-    indicators, expected_caption_text, lookahead_conf, mocker
-):
-    """Test that the table caption is only populated if a biased_indicator starts with '&'."""
-
-    single_mock = MagicMock()
-    lookahead_analysis = LookaheadAnalysis(
-        lookahead_conf,
-        {"name": "strategy_test_v3_with_lookahead_bias"},
-    )
-    lookahead_analysis.current_analysis.false_indicators = indicators
-    single_mock.return_value = lookahead_analysis
-    text_table_mock = MagicMock()
-    mocker.patch.multiple(
-        "freqtrade.optimize.analysis.lookahead_helpers.LookaheadAnalysisSubFunctions",
-        initialize_single_lookahead_analysis=single_mock,
-        text_table_lookahead_analysis_instances=text_table_mock,
-    )
-
-    LookaheadAnalysisSubFunctions.start(lookahead_conf)
-
-    text_table_mock.assert_called_once_with(
-        lookahead_conf, [lookahead_analysis], caption=expected_caption_text
-    )
 
 
 def test_lookahead_helper_text_table_lookahead_analysis_instances(lookahead_conf):

@@ -406,7 +406,6 @@ class Exchange(LoggingMixin):
         self.validate_pricing(config["entry_pricing"])
         self.validate_orderflow(config["exchange"])
         self.validate_demo_trading(config["exchange"])
-        self.validate_freqai(config)
 
         self._set_startup_candle_count(config)
 
@@ -934,19 +933,6 @@ class Exchange(LoggingMixin):
         ):
             raise ConfigurationError(
                 f"Trade data not available for {self.name}. Can't use orderflow feature."
-            )
-
-    def validate_freqai(self, config: Config) -> None:
-        freqai_enabled = config.get("freqai", {}).get("enabled", False)
-        override = config.get("freqai", {}).get("override_exchange_checks", False)
-        if not override and freqai_enabled and not self._ft_has["ohlcv_has_history"]:
-            raise ConfigurationError(
-                f"Historic OHLCV data not available for {self.name}. Can't use freqAI."
-            )
-        elif override and freqai_enabled and not self._ft_has["ohlcv_has_history"]:
-            logger.warning(
-                "Overriding exchange checks for freqAI. Make sure that your exchange supports "
-                "fetching historic OHLCV data, otherwise freqAI will not work."
             )
 
     def validate_demo_trading(self, exchange_conf: dict) -> None:

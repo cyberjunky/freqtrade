@@ -3,9 +3,7 @@ usage: freqtrade lookahead-analysis [-h] [-v] [--no-color] [--logfile FILE]
                                     [-V] [-c PATH] [-d PATH] [--userdir PATH]
                                     [-s NAME] [--strategy-path PATH]
                                     [--recursive-strategy-search]
-                                    [--freqaimodel NAME]
-                                    [--freqaimodel-path PATH] [-i TIMEFRAME]
-                                    [--timerange TIMERANGE]
+                                    [-i TIMEFRAME] [--timerange TIMERANGE]
                                     [--data-format-ohlcv {json,jsongz,feather,parquet}]
                                     [--max-open-trades INT]
                                     [--stake-amount STAKE_AMOUNT]
@@ -18,7 +16,6 @@ usage: freqtrade lookahead-analysis [-h] [-v] [--no-color] [--logfile FILE]
                                     [--export {none,trades,signals}]
                                     [--backtest-filename PATH]
                                     [--backtest-directory PATH]
-                                    [--freqai-backtest-live-models]
                                     [--minimum-trade-amount INT]
                                     [--targeted-trade-amount INT]
                                     [--lookahead-analysis-exportfilename LOOKAHEAD_ANALYSIS_EXPORTFILENAME]
@@ -76,8 +73,6 @@ options:
   --backtest-directory, --export-directory PATH
                         Directory to use for backtest results. Example:
                         `--export-directory=user_data/backtest_results/`.
-  --freqai-backtest-live-models
-                        Run backtest with ready models.
   --minimum-trade-amount INT
                         Minimum trade amount for lookahead-analysis
   --targeted-trade-amount INT
@@ -115,8 +110,5 @@ Strategy arguments:
   --recursive-strategy-search
                         Recursively search for a strategy in the strategies
                         folder.
-  --freqaimodel NAME    Specify a custom freqaimodels.
-  --freqaimodel-path PATH
-                        Specify additional lookup path for freqaimodels.
 
 ```

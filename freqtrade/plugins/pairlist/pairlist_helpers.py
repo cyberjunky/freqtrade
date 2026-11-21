@@ -48,9 +48,4 @@ def expand_pairlist(
 
 
 def dynamic_expand_pairlist(config: Config, markets: list[str]) -> list[str]:
-    expanded_pairs = expand_pairlist(config["pairs"], markets)
-    if config.get("freqai", {}).get("enabled", False):
-        corr_pairlist = config["freqai"]["feature_parameters"]["include_corr_pairlist"]
-        expanded_pairs += [pair for pair in corr_pairlist if pair not in config["pairs"]]
-
-    return expanded_pairs
+    return expand_pairlist(config["pairs"], markets)

@@ -222,8 +222,6 @@ All endpoints in the below table need to be prefixed with the base URL of the AP
 The API Server includes a websocket endpoint for subscribing to RPC messages from the freqtrade Bot.
 This can be used to consume real-time data from your bot, such as entry/exit fill messages, whitelist changes, populated indicators for pairs, and more.
 
-This is also used to setup [Producer/Consumer mode](producer-consumer.md) in Freqtrade.
-
 Assuming your rest API is set to `127.0.0.1` on port `8080`, the endpoint is available at `http://localhost:8080/api/v1/message/ws`.
 
 To access the websocket endpoint, the `ws_token` is required as a query parameter in the endpoint URL.

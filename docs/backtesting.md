@@ -33,7 +33,7 @@ All profit calculations include fees, and freqtrade will use the exchange's defa
 
 !!! Note
     By default, Freqtrade will export backtesting results to `user_data/backtest_results`.
-    The exported trades can be used for [further analysis](#further-backtest-result-analysis) or can be used by the [plotting sub-command](plotting.md#plot-price-and-indicators) (`freqtrade plot-dataframe`) in the scripts directory.
+    The exported trades can be used for [further analysis](#further-backtest-result-analysis).
 
 
 ### Starting balance
@@ -101,7 +101,7 @@ Prevent exporting trades to file
 freqtrade backtesting --strategy backtesting --export none --config config.json 
 ```
 
-Only use this if you're sure you'll not want to plot or analyze your results further.
+Only use this if you're sure you'll not want to analyze your results further.
 
 ---
 
@@ -465,7 +465,7 @@ It contains key metrics about the performance of your strategy on backtesting da
 - `Absolute drawdown (wallet balance)`: Maximum absolute drawdown experienced based on the unrealized balance, including percentage relative to the account calculated as `(Absolute Drawdown) / (DrawdownHigh + startingBalance)`.
 - `Drawdown duration`: Duration of the largest drawdown period.
 - `Profit at drawdown start` / `Profit at drawdown end`: Profit at the beginning and end of the largest drawdown period.
-- `Drawdown start` / `Drawdown end`: Start and end datetime for the largest drawdown (can also be visualized via the `plot-dataframe` sub-command).
+- `Drawdown start` / `Drawdown end`: Start and end datetime for the largest drawdown.
 - `Min/Max balance (wallet balance)`: Lowest and Highest Wallet balance during the backtest period - including capital tied in open trades.
 - `Min/Max balance dates (wallet balance)`: Dates when the minimum and maximum unrealized balance occurred.
 - `Sharpe (wallet balance)` Annualized Sharpe ratio calculation including unrealized profits.

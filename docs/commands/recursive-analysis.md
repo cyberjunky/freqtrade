@@ -3,9 +3,7 @@ usage: freqtrade recursive-analysis [-h] [-v] [--no-color] [--logfile FILE]
                                     [-V] [-c PATH] [-d PATH] [--userdir PATH]
                                     [-s NAME] [--strategy-path PATH]
                                     [--recursive-strategy-search]
-                                    [--freqaimodel NAME]
-                                    [--freqaimodel-path PATH] [-i TIMEFRAME]
-                                    [--timerange TIMERANGE]
+                                    [-i TIMEFRAME] [--timerange TIMERANGE]
                                     [--data-format-ohlcv {json,jsongz,feather,parquet}]
                                     [-p PAIRS [PAIRS ...]]
                                     [--startup-candle STARTUP_CANDLE [STARTUP_CANDLE ...]]
@@ -55,8 +53,5 @@ Strategy arguments:
   --recursive-strategy-search
                         Recursively search for a strategy in the strategies
                         folder.
-  --freqaimodel NAME    Specify a custom freqaimodels.
-  --freqaimodel-path PATH
-                        Specify additional lookup path for freqaimodels.
 
 ```

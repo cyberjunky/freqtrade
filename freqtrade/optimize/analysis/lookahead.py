@@ -1,8 +1,6 @@
 import logging
-import shutil
 from copy import deepcopy
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from pandas import DataFrame
@@ -95,17 +93,6 @@ class LookaheadAnalysis(BaseAnalysis):
                     )
 
     def prepare_data(self, varholder: VarHolder, pairs_to_load: list[DataFrame]):
-        if "freqai" in self.local_config and "identifier" in self.local_config["freqai"]:
-            # purge previous data if the freqai model is defined
-            # (to be sure nothing is carried over from older backtests)
-            path_to_current_identifier = Path(
-                f"{self.local_config['user_data_dir']}/models/"
-                f"{self.local_config['freqai']['identifier']}"
-            ).resolve()
-            # remove folder and its contents
-            if Path.exists(path_to_current_identifier):
-                shutil.rmtree(path_to_current_identifier)
-
         prepare_data_config = deepcopy(self.local_config)
         prepare_data_config["timerange"] = (
             str(self.dt_to_timestamp(varholder.from_dt))

@@ -143,10 +143,7 @@ def test_bot_cleanup_db_errors(mocker, default_conf_usdt, caplog, monkeypatch) -
         side_effect=OperationalException(),
     )
     freqtrade = get_patched_freqtradebot(mocker, default_conf_usdt)
-    freqtrade.emc = MagicMock()
-    freqtrade.emc.shutdown = MagicMock()
     freqtrade.cleanup()
-    assert freqtrade.emc.shutdown.call_count == 1
     assert check_mock.call_count == 1
     assert log_has_re(r"Exception during cleanup: OperationalException.*", caplog)
 

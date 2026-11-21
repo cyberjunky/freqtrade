@@ -18,11 +18,9 @@ _SENSITIVE_KEYS = [
     "exchange.privateKey",
     "telegram.token",
     "telegram.chat_id",
-    "discord.webhook_url",
     "api_server.password",
     "api_server.jwt_secret_key",
     "api_server.ws_token",
-    "webhook.url",
     "coingecko.api_key",
     # ccxt credentials (requiredCredentials) - ccxt also accepts snake_case variants
     *[
@@ -70,9 +68,6 @@ def sanitize_config(config: Config, *, show_sensitive: bool = False) -> Config:
             if config.get(key):
                 config[key] = "REDACTED"
 
-    for producer in config.get("external_message_consumer", {}).get("producers", []):
-        if producer.get("ws_token"):
-            producer["ws_token"] = "REDACTED"  # noqa: S105
     for pairlist in config.get("pairlists", []):
         if pairlist.get("bearer_token"):
             pairlist["bearer_token"] = "REDACTED"  # noqa: S105

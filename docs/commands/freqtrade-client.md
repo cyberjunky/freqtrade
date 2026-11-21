@@ -122,7 +122,6 @@ pair_history
 :param pair: Pair to get data for
 :param timeframe: Only pairs with this timeframe available.
 :param strategy: Strategy to analyze and get values for
-:param freqaimodel: FreqAI model to use for analysis
 :param timerange: Timerange to get data for (same format than --timerange endpoints)
 
 pairlists_available

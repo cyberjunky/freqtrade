@@ -127,40 +127,19 @@ def test_send_msg_telegram_enabled(mocker, default_conf, caplog) -> None:
     assert telegram_mock.call_count == 1
 
 
-def test_init_webhook_disabled(mocker, default_conf, caplog) -> None:
+def test_send_msg_not_implemented(mocker, default_conf, caplog) -> None:
     caplog.set_level(logging.DEBUG)
-    default_conf["telegram"]["enabled"] = False
-    default_conf["webhook"] = {"enabled": False}
-    rpc_manager = RPCManager(get_patched_freqtradebot(mocker, default_conf))
-
-    assert not log_has("Enabling rpc.webhook ...", caplog)
-    assert rpc_manager.registered_modules == []
-
-
-def test_init_webhook_enabled(mocker, default_conf, caplog) -> None:
-    caplog.set_level(logging.DEBUG)
-    default_conf["telegram"]["enabled"] = False
-    default_conf["webhook"] = {"enabled": True, "url": "https://DEADBEEF.com"}
-    rpc_manager = RPCManager(get_patched_freqtradebot(mocker, default_conf))
-
-    assert log_has("Enabling rpc.webhook ...", caplog)
-    assert len(rpc_manager.registered_modules) == 1
-    assert "webhook" in [mod.name for mod in rpc_manager.registered_modules]
-
-
-def test_send_msg_webhook_CustomMessagetype(mocker, default_conf, caplog) -> None:
-    caplog.set_level(logging.DEBUG)
-    default_conf["telegram"]["enabled"] = False
-    default_conf["webhook"] = {"enabled": True, "url": "https://DEADBEEF.com"}
+    default_conf["telegram"]["enabled"] = True
+    mocker.patch("freqtrade.rpc.telegram.Telegram._init")
     mocker.patch(
-        "freqtrade.rpc.webhook.Webhook.send_msg", MagicMock(side_effect=NotImplementedError)
+        "freqtrade.rpc.telegram.Telegram.send_msg", MagicMock(side_effect=NotImplementedError)
     )
     rpc_manager = RPCManager(get_patched_freqtradebot(mocker, default_conf))
 
-    assert "webhook" in [mod.name for mod in rpc_manager.registered_modules]
+    assert "telegram" in [mod.name for mod in rpc_manager.registered_modules]
     rpc_manager.send_msg({"type": RPCMessageType.STARTUP, "status": "TestMessage"})
     rpc_manager.flush()
-    assert log_has("Message type 'startup' not implemented by handler webhook.", caplog)
+    assert log_has("Message type 'startup' not implemented by handler telegram.", caplog)
 
 
 def test_startupmessages_telegram_enabled(mocker, default_conf) -> None:
@@ -229,31 +208,26 @@ def test_init_apiserver_enabled(mocker, default_conf, caplog) -> None:
 
 def test_send_msg_slow_handler_does_not_block(mocker, default_conf) -> None:
     default_conf["telegram"]["enabled"] = True
-    default_conf["webhook"] = {"enabled": True, "url": "https://DEADBEEF.com"}
     mocker.patch("freqtrade.rpc.telegram.Telegram._init")
     mocker.patch("freqtrade.rpc.telegram.Telegram.cleanup")
     release = threading.Event()
-    webhook_mock = mocker.patch(
-        "freqtrade.rpc.webhook.Webhook.send_msg", side_effect=lambda msg: release.wait(5)
+    telegram_mock = mocker.patch(
+        "freqtrade.rpc.telegram.Telegram.send_msg", side_effect=lambda msg: release.wait(5)
     )
-    telegram_mock = mocker.patch("freqtrade.rpc.telegram.Telegram.send_msg")
     rpc_manager = RPCManager(get_patched_freqtradebot(mocker, default_conf))
 
     start = time.monotonic()
     rpc_manager.send_msg({"type": RPCMessageType.STATUS, "status": "test"})
     rpc_manager.send_msg({"type": RPCMessageType.STATUS, "status": "test2"})
+    # The caller is not held up by the blocked handler
     assert time.monotonic() - start < 1
-
-    # Telegram is not held up by the blocked webhook
-    rpc_manager._queues["telegram"].join()
-    assert telegram_mock.call_count == 2
-    assert webhook_mock.call_count <= 1
+    assert telegram_mock.call_count <= 1
 
     release.set()
     rpc_manager.flush()
-    assert webhook_mock.call_count == 2
+    assert telegram_mock.call_count == 2
     # Order is preserved per handler
-    assert [c[0][0]["status"] for c in webhook_mock.call_args_list] == ["test", "test2"]
+    assert [c[0][0]["status"] for c in telegram_mock.call_args_list] == ["test", "test2"]
     rpc_manager.cleanup()
 
 

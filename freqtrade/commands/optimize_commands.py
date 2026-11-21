@@ -159,19 +159,7 @@ def start_hyperopt(args: dict[str, Any]) -> None:
         logger.info("Quitting now.")
         # TODO: return False here in order to help freqtrade to exit
         # with non-zero exit code...
-        # Same in Edge and Backtesting start() functions.
-
-
-def start_edge(args: dict[str, Any]) -> None:
-    """
-    Start Edge script
-    :param args: Cli args from Arguments()
-    :return: None
-    """
-    raise ConfigurationError(
-        "The Edge module has been deprecated in 2023.9 and removed in 2025.6. "
-        "All functionalities of edge have been removed."
-    )
+        # Same in Backtesting start() functions.
 
 
 def start_lookahead_analysis(args: dict[str, Any]) -> None:

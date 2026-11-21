@@ -22,11 +22,10 @@ def check_exchange(config: Config, check_for_bad: bool = True) -> bool:
     """
 
     if config["runmode"] in [
-        RunMode.PLOT,
         RunMode.UTIL_NO_EXCHANGE,
         RunMode.OTHER,
     ] and not config.get("exchange", {}).get("name"):
-        # Skip checking exchange in plot mode, since it requires no exchange
+        # Skip checking exchange for modes which require no exchange
         return True
     logger.info("Checking exchange...")
 

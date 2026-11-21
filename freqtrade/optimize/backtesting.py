@@ -173,11 +173,6 @@ class Backtesting:
         self.dataprovider = DataProvider(self.config, self.exchange)
 
         if self.config.get("strategy_list"):
-            if self.config.get("freqai", {}).get("enabled", False):
-                logger.warning(
-                    "Using --strategy-list with FreqAI REQUIRES all strategies "
-                    "to have identical feature_engineering_* functions."
-                )
             for strat in list(self.config["strategy_list"]):
                 stratconf = deepcopy(self.config)
                 stratconf["strategy"] = strat
@@ -214,11 +209,6 @@ class Backtesting:
         self.precision_mode = self.exchange.precisionMode
         self.precision_mode_price = self.exchange.precision_mode_price
 
-        if self.config.get("freqai_backtest_live_models", False):
-            from freqtrade.freqai.utils import get_timerange_backtest_live_models
-
-            self.config["timerange"] = get_timerange_backtest_live_models(self.config)
-
         self.timerange = TimeRange.parse_timerange(
             None if self.config.get("timerange") is None else str(self.config.get("timerange"))
         )
@@ -229,11 +219,6 @@ class Backtesting:
 
         # Add maximum startup candle count to configuration for informative pairs support
         self.config["startup_candle_count"] = self.required_startup
-
-        if self.config.get("freqai", {}).get("enabled", False):
-            # For FreqAI, increase the required_startup to includes the training data
-            # This value should NOT be written to startup_candle_count
-            self.required_startup = self.dataprovider.get_required_startup(self.timeframe)
 
         self.trading_mode: TradingMode = self.config.get("trading_mode", TradingMode.SPOT)
         self.margin_mode: MarginMode = self.config.get("margin_mode", MarginMode.ISOLATED)
@@ -533,9 +518,6 @@ class Backtesting:
             self.check_abort()
             self._increment_progress()
 
-            if not pair_data.empty:
-                # Cleanup from prior runs
-                pair_data.drop(HEADERS[5:] + ["buy", "sell"], axis=1, errors="ignore")
             df_analyzed = self.strategy.ft_advise_signals(pair_data, {"pair": pair})
             # Update dataprovider cache
             self.dataprovider._set_cached_df(

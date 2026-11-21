@@ -53,7 +53,6 @@ from freqtrade.plugins.pairlistmanager import PairListManager
 from freqtrade.plugins.protectionmanager import ProtectionManager
 from freqtrade.resolvers import ExchangeResolver, StrategyResolver
 from freqtrade.rpc import RPCManager
-from freqtrade.rpc.external_message_consumer import ExternalMessageConsumer
 from freqtrade.rpc.rpc_types import (
     ProfitLossStr,
     RPCCancelMsg,
@@ -147,13 +146,6 @@ class FreqtradeBot(LoggingMixin):
             # Attach Wallets to strategy instance
             self.strategy.wallets = self.wallets
 
-            # Init ExternalMessageConsumer if enabled
-            self.emc: ExternalMessageConsumer | None = (
-                ExternalMessageConsumer(self.config, self.dataprovider)
-                if self.config.get("external_message_consumer", {}).get("enabled", False)
-                else None
-            )
-
             logger.info("Starting initial pairlist refresh")
             with MeasureTime(
                 lambda duration, _: logger.info(f"Initial Pairlist refresh took {duration:.2f}s"), 0
@@ -244,14 +236,8 @@ class FreqtradeBot(LoggingMixin):
         except Exception as e:
             logger.warning(f"Exception during cleanup: {e.__class__.__name__} {e}")
 
-        finally:
-            if getattr(self, "strategy", None):
-                self.strategy.ft_bot_cleanup()
-
         if getattr(self, "rpc", None):
             self.rpc.cleanup()
-        if hasattr(self, "emc") and self.emc:
-            self.emc.shutdown()
         if getattr(self, "exchange", None):
             self.exchange.close()
         try:

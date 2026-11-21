@@ -270,20 +270,8 @@ class LookaheadAnalysisSubFunctions:
 
         # report the results
         if lookaheadAnalysis_instances:
-            caption: str | None = None
-            if any(
-                any(
-                    indicator.startswith("&")
-                    for indicator in inst.current_analysis.false_indicators
-                )
-                for inst in lookaheadAnalysis_instances
-            ):
-                caption = (
-                    "Any indicators in 'biased_indicators' which are used within "
-                    "set_freqai_targets() can be ignored."
-                )
             LookaheadAnalysisSubFunctions.text_table_lookahead_analysis_instances(
-                config, lookaheadAnalysis_instances, caption=caption
+                config, lookaheadAnalysis_instances
             )
             if config.get("lookahead_analysis_exportfilename") is not None:
                 LookaheadAnalysisSubFunctions.export_to_csv(config, lookaheadAnalysis_instances)

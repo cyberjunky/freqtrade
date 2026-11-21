@@ -172,7 +172,6 @@ Once your bot is running in dry or live mode, Freqtrade has six mechanisms to co
 - **[FTUI](https://github.com/freqtrade/ftui)**: FTUI is a terminal (command line) interface to Freqtrade, and allows monitoring of a running bot only.
 - **[freqtrade-client](rest-api.md#consuming-the-api)**: A python implementation of the REST API, making it easy to make requests and consume bot responses from your python apps or the command line.
 - **[REST API endpoints](rest-api.md#available-endpoints)**: The REST API allows programmers to develop their own tools to interact with a Freqtrade bot.
-- **[Webhooks](webhook-config.md)**: Freqtrade can send information to other services, e.g. discord, by webhooks.
 
 ### Logs
 

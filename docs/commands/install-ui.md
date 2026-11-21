@@ -1,6 +1,6 @@
 ``` output
 usage: freqtrade install-ui [-h] [--erase] [--prerelease]
-                            [--ui-version UI_VERSION]
+                            [--ui-version UI_VERSION] [--local]
 
 options:
   -h, --help            show this help message and exit
@@ -10,5 +10,8 @@ options:
   --ui-version UI_VERSION
                         Specify a specific version of FreqUI to install. Not
                         specifying this installs the latest version.
+  --local               Install the vendored FreqUI build shipped in this repo
+                        (frequi/dist) instead of downloading a release from
+                        GitHub.
 
 ```

@@ -87,17 +87,6 @@ jobs:
           docker pull ${IMAGE_NAME}:${TAG} || true
           docker build --cache-from ${IMAGE_NAME}:${TAG} -t ${CACHE_IMAGE}:${TAG} .
 
-      - name: Run build for AI images
-        env:
-          TAG: ${{ steps.tags.outputs.TAG }}
-          TAG_PLOT: ${{ steps.tags.outputs.TAG_PLOT }}
-          TAG_FREQAI: ${{ steps.tags.outputs.TAG_FREQAI }}
-          TAG_FREQAI_RL: ${{ steps.tags.outputs.TAG_FREQAI_RL }}
-        run: |
-          docker build --build-arg sourceimage=${CACHE_IMAGE} --build-arg sourcetag=${TAG} -t ${CACHE_IMAGE}:${TAG_PLOT} -f docker/Dockerfile.plot .
-          docker build --build-arg sourceimage=${CACHE_IMAGE} --build-arg sourcetag=${TAG} -t ${CACHE_IMAGE}:${TAG_FREQAI} -f docker/Dockerfile.freqai .
-          docker build --build-arg sourceimage=${CACHE_IMAGE} --build-arg sourcetag=${TAG_FREQAI} -t ${CACHE_IMAGE}:${TAG_FREQAI_RL} -f docker/Dockerfile.freqai_rl .
-
       - name: Run backtest in Docker
         env:
           TAG: ${{ steps.tags.outputs.TAG }}
@@ -107,14 +96,8 @@ jobs:
       - name: Push cache images
         env:
           TAG: ${{ steps.tags.outputs.TAG }}
-          TAG_PLOT: ${{ steps.tags.outputs.TAG_PLOT }}
-          TAG_FREQAI: ${{ steps.tags.outputs.TAG_FREQAI }}
-          TAG_FREQAI_RL: ${{ steps.tags.outputs.TAG_FREQAI_RL }}
         run: |
           docker push ${CACHE_IMAGE}:$TAG
-          docker push ${CACHE_IMAGE}:$TAG_PLOT
-          docker push ${CACHE_IMAGE}:$TAG_FREQAI
-          docker push ${CACHE_IMAGE}:$TAG_FREQAI_RL
 
       - name: list Images
         run: |
@@ -171,17 +154,6 @@ jobs:
           docker pull ${IMAGE_NAME}:${TAG_ARM} || true
           docker build --cache-from ${IMAGE_NAME}:${TAG_ARM} -t ${CACHE_IMAGE}:${TAG_ARM} .
 
-      - name: Run build for AI images
-        env:
-          TAG_ARM: ${{ steps.tags.outputs.TAG_ARM }}
-          TAG_PLOT_ARM: ${{ steps.tags.outputs.TAG_PLOT_ARM }}
-          TAG_FREQAI_ARM: ${{ steps.tags.outputs.TAG_FREQAI_ARM }}
-          TAG_FREQAI_RL_ARM: ${{ steps.tags.outputs.TAG_FREQAI_RL_ARM }}
-        run: |
-          docker build --build-arg sourceimage=${CACHE_IMAGE} --build-arg sourcetag=${TAG_ARM} -t ${CACHE_IMAGE}:${TAG_PLOT_ARM} -f docker/Dockerfile.plot .
-          docker build --build-arg sourceimage=${CACHE_IMAGE} --build-arg sourcetag=${TAG_ARM} -t ${CACHE_IMAGE}:${TAG_FREQAI_ARM} -f docker/Dockerfile.freqai .
-          docker build --build-arg sourceimage=${CACHE_IMAGE} --build-arg sourcetag=${TAG_FREQAI_ARM} -t ${CACHE_IMAGE}:${TAG_FREQAI_RL_ARM} -f docker/Dockerfile.freqai_rl .
-
       - name: Run backtest in Docker
         env:
           TAG_ARM: ${{ steps.tags.outputs.TAG_ARM }}
@@ -195,13 +167,7 @@ jobs:
       - name: Push cache images
         env:
           TAG_ARM: ${{ steps.tags.outputs.TAG_ARM }}
-          TAG_PLOT_ARM: ${{ steps.tags.outputs.TAG_PLOT_ARM }}
-          TAG_FREQAI_ARM: ${{ steps.tags.outputs.TAG_FREQAI_ARM }}
-          TAG_FREQAI_RL_ARM: ${{ steps.tags.outputs.TAG_FREQAI_RL_ARM }}
         run: |
-          docker push ${CACHE_IMAGE}:$TAG_PLOT_ARM
-          docker push ${CACHE_IMAGE}:$TAG_FREQAI_ARM
-          docker push ${CACHE_IMAGE}:$TAG_FREQAI_RL_ARM
           docker push ${CACHE_IMAGE}:$TAG_ARM
 
       - name: Create manifests
@@ -213,40 +179,6 @@ jobs:
             --tag ${IMAGE_NAME}:${TAG} \
             --tag ${GHCR_IMAGE_NAME}:${TAG} \
             ${CACHE_IMAGE}:${TAG} ${CACHE_IMAGE}:${TAG_ARM}
-
-      - name: Create multiarch image - Plot
-        env:
-          TAG_PLOT: ${{ steps.tags.outputs.TAG_PLOT }}
-          TAG_PLOT_ARM: ${{ steps.tags.outputs.TAG_PLOT_ARM }}
-        run: |
-          docker buildx imagetools create \
-            --tag ${IMAGE_NAME}:${TAG_PLOT} \
-            --tag ${GHCR_IMAGE_NAME}:${TAG_PLOT} \
-            ${CACHE_IMAGE}:${TAG_PLOT} ${CACHE_IMAGE}:${TAG_PLOT_ARM}
-
-      - name: Create multiarch image - FreqAI
-        env:
-          TAG_FREQAI: ${{ steps.tags.outputs.TAG_FREQAI }}
-          TAG_FREQAI_ARM: ${{ steps.tags.outputs.TAG_FREQAI_ARM }}
-        run: |
-          docker buildx imagetools create \
-            --tag ${IMAGE_NAME}:${TAG_FREQAI} \
-            --tag ${GHCR_IMAGE_NAME}:${TAG_FREQAI} \
-            ${CACHE_IMAGE}:${TAG_FREQAI} ${CACHE_IMAGE}:${TAG_FREQAI_ARM}
-
-      - name: Create multiarch image - FreqAI RL
-        env:
-          TAG_FREQAI_RL: ${{ steps.tags.outputs.TAG_FREQAI_RL }}
-          TAG_FREQAI_RL_ARM: ${{ steps.tags.outputs.TAG_FREQAI_RL_ARM }}
-          TAG_FREQAI_TORCH: ${{ steps.tags.outputs.TAG_FREQAI_TORCH }}
-        run: |
-          # Create special Torch tag - which is identical to the RL tag.
-          docker buildx imagetools create \
-            --tag ${IMAGE_NAME}:${TAG_FREQAI_RL} \
-            --tag ${GHCR_IMAGE_NAME}:${TAG_FREQAI_RL} \
-            --tag ${IMAGE_NAME}:${TAG_FREQAI_TORCH} \
-            --tag ${GHCR_IMAGE_NAME}:${TAG_FREQAI_TORCH} \
-            ${CACHE_IMAGE}:${TAG_FREQAI_RL} ${CACHE_IMAGE}:${TAG_FREQAI_RL_ARM}
 
       - name: Tag latest
         if: env.TAG == 'develop'

@@ -297,8 +297,6 @@ def patch_freqtradebot(mocker, config) -> None:
     mocker.patch("freqtrade.freqtradebot.RPCManager._init", MagicMock())
     mocker.patch("freqtrade.freqtradebot.RPCManager.send_msg", MagicMock())
     patch_whitelist(mocker, config)
-    mocker.patch("freqtrade.freqtradebot.ExternalMessageConsumer")
-    mocker.patch("freqtrade.configuration.config_validation._validate_consumers")
 
 
 def get_patched_freqtradebot(mocker, config) -> FreqtradeBot:
@@ -503,27 +501,6 @@ def is_arm(include_aarch64: bool = False) -> bool:
 def is_mac() -> bool:
     machine = platform.system()
     return "Darwin" in machine
-
-
-@pytest.fixture(autouse=True)
-def patch_torch_initlogs(mocker) -> None:
-    if is_mac():
-        # Mock torch import completely
-        import sys
-        import types
-
-        module_name = "torch"
-        mocked_module = types.ModuleType(module_name)
-        # SciPy's array-API dispatch probes ``torch.Tensor`` to classify inputs;
-        # expose a dummy so scipy.stats stays importable/usable under the mock.
-        mocked_module.Tensor = type("Tensor", (), {})
-        sys.modules[module_name] = mocked_module
-    else:
-        try:
-            mocker.patch("torch._logging._init_logs")
-        except ModuleNotFoundError:
-            # Allow running limited tests to run without freqAI dependencies
-            pass
 
 
 @pytest.fixture(autouse=True)

@@ -215,52 +215,6 @@ def test_download_data_options() -> None:
     assert pargs["exchange"] == "binance"
 
 
-def test_plot_dataframe_options() -> None:
-    args = [
-        "plot-dataframe",
-        "-c",
-        "tests/testdata/testconfigs/main_test_config.json",
-        "--indicators1",
-        "sma10",
-        "sma100",
-        "--indicators2",
-        "macd",
-        "fastd",
-        "fastk",
-        "--plot-limit",
-        "30",
-        "-p",
-        "UNITTEST/BTC",
-    ]
-    pargs = Arguments(args).get_parsed_arg()
-
-    assert pargs["indicators1"] == ["sma10", "sma100"]
-    assert pargs["indicators2"] == ["macd", "fastd", "fastk"]
-    assert pargs["plot_limit"] == 30
-    assert pargs["pairs"] == ["UNITTEST/BTC"]
-
-
-@pytest.mark.parametrize("auto_open_arg", [True, False])
-def test_plot_profit_options(auto_open_arg: bool) -> None:
-    args = [
-        "plot-profit",
-        "-p",
-        "UNITTEST/BTC",
-        "--trade-source",
-        "DB",
-        "--db-url",
-        "sqlite:///whatever.sqlite",
-    ]
-    if auto_open_arg:
-        args.append("--auto-open")
-    pargs = Arguments(args).get_parsed_arg()
-
-    assert pargs["trade_source"] == "DB"
-    assert pargs["pairs"] == ["UNITTEST/BTC"]
-    assert pargs["db_url"] == "sqlite:///whatever.sqlite"
-    assert pargs["plot_auto_open"] == auto_open_arg
-
-
 def test_config_notallowed(mocker) -> None:
     mocker.patch.object(Path, "is_file", MagicMock(return_value=False))
     args = [

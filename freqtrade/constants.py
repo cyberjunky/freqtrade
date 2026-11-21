@@ -61,7 +61,6 @@ AVAILABLE_PAIRLISTS = [
     "StaticPairList",
     "VolumePairList",
     "PercentChangePairList",
-    "ProducerPairList",
     "RemotePairList",
     "MarketCapPairList",
     "CrossMarketPairList",
@@ -120,12 +119,9 @@ FTHYPT_FILEVERSION = "fthypt_fileversion"
 USERPATH_HYPEROPTS = "hyperopts"
 USERPATH_STRATEGIES = "strategies"
 USERPATH_NOTEBOOKS = "notebooks"
-USERPATH_FREQAIMODELS = "freqaimodels"
 USERPATH_PAIRLISTS = "pairlist"
 
 TELEGRAM_SETTING_OPTIONS = ["on", "off", "silent"]
-WEBHOOK_FORMAT_OPTIONS = ["form", "json", "raw"]
-FULL_DATAFRAME_THRESHOLD = 100
 CUSTOM_TAG_MAX_LENGTH = 255
 DL_DATA_TIMEFRAMES = ["1m", "5m"]
 

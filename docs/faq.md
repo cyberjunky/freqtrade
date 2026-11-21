@@ -199,7 +199,7 @@ Futures will usually have to be enabled specifically.
 
 ### How do I search the bot logs for something?
 
-By default, the bot writes its log into stderr stream. This is implemented this way so that you can easily separate the bot's diagnostics messages from Backtesting, Edge and Hyperopt results, output from other various Freqtrade utility sub-commands, as well as from the output of your custom `print()`'s you may have inserted into your strategy. So if you need to search the log messages with the grep utility, you need to redirect stderr to stdout and disregard stdout.
+By default, the bot writes its log into stderr stream. This is implemented this way so that you can easily separate the bot's diagnostics messages from Backtesting and Hyperopt results, output from other various Freqtrade utility sub-commands, as well as from the output of your custom `print()`'s you may have inserted into your strategy. So if you need to search the log messages with the grep utility, you need to redirect stderr to stdout and disregard stdout.
 
 * In unix shells, this normally can be done as simple as:
 ```shell
@@ -315,4 +315,4 @@ If you're on an older version, please follow the [upgrade instructions](updating
 
 Freqtrade does not have a Crypto token offering.
 
-Token offerings you find on the internet referring Freqtrade, FreqAI or freqUI must be considered to be a scam, trying to exploit freqtrade's popularity for their own, nefarious gains.
+Token offerings you find on the internet referring Freqtrade or freqUI must be considered to be a scam, trying to exploit freqtrade's popularity for their own, nefarious gains.

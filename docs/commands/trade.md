@@ -2,7 +2,6 @@
 usage: freqtrade trade [-h] [-v] [--no-color] [--logfile FILE] [-V] [-c PATH]
                        [-d PATH] [--userdir PATH] [-s NAME]
                        [--strategy-path PATH] [--recursive-strategy-search]
-                       [--freqaimodel NAME] [--freqaimodel-path PATH]
                        [--db-url PATH] [--sd-notify] [--dry-run]
                        [--dry-run-wallet DRY_RUN_WALLET] [--fee FLOAT]
 
@@ -48,8 +47,5 @@ Strategy arguments:
   --recursive-strategy-search
                         Recursively search for a strategy in the strategies
                         folder.
-  --freqaimodel NAME    Specify a custom freqaimodels.
-  --freqaimodel-path PATH
-                        Specify additional lookup path for freqaimodels.
 
 ```

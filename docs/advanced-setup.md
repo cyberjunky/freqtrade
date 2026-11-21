@@ -62,8 +62,6 @@ services:
   freqtrade1:
     image: freqtradeorg/freqtrade:stable
     # image: freqtradeorg/freqtrade:develop
-    # Use plotting image
-    # image: freqtradeorg/freqtrade:develop_plot
     # Build step - only needed when additional dependencies are needed
     # build:
     #   context: .
@@ -89,8 +87,6 @@ services:
   freqtrade2:
     image: freqtradeorg/freqtrade:stable
     # image: freqtradeorg/freqtrade:develop
-    # Use plotting image
-    # image: freqtradeorg/freqtrade:develop_plot
     # Build step - only needed when additional dependencies are needed
     # build:
     #   context: .

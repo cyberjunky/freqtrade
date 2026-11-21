@@ -16,13 +16,11 @@ from freqtrade.commands import (
     start_convert_trades,
     start_create_userdir,
     start_download_data,
-    start_edge,
     start_hyperopt_list,
     start_hyperopt_show,
     start_install_ui,
     start_list_data,
     start_list_exchanges,
-    start_list_freqAI_models,
     start_list_hyperopt_loss_functions,
     start_list_markets,
     start_list_strategies,
@@ -30,7 +28,6 @@ from freqtrade.commands import (
     start_new_strategy,
     start_show_config,
     start_show_trades,
-    start_strategy_update,
     start_test_pairlist,
     start_trading,
     start_webserver,
@@ -1230,30 +1227,6 @@ def test_start_list_hyperopt_loss_functions(capsys):
     assert "<builtin>/hyperopt_loss_sortino_daily.py" in captured.out
 
 
-def test_start_list_freqAI_models(capsys):
-    args = ["list-freqaimodels", "-1"]
-    pargs = get_args(args)
-    pargs["config"] = None
-    start_list_freqAI_models(pargs)
-    captured = capsys.readouterr()
-    assert "LightGBMClassifier" in captured.out
-    assert "LightGBMRegressor" in captured.out
-    assert "XGBoostRegressor" in captured.out
-    assert "<builtin>/LightGBMRegressor.py" not in captured.out
-
-    args = [
-        "list-freqaimodels",
-    ]
-    pargs = get_args(args)
-    pargs["config"] = None
-    start_list_freqAI_models(pargs)
-    captured = capsys.readouterr()
-    assert "LightGBMClassifier" in captured.out
-    assert "LightGBMRegressor" in captured.out
-    assert "XGBoostRegressor" in captured.out
-    assert "<builtin>/LightGBMRegressor.py" in captured.out
-
-
 def test_start_test_pairlist(mocker, caplog, tickers, default_conf, capsys):
     patch_exchange(mocker, mock_markets=True)
     mocker.patch.multiple(
@@ -2121,40 +2094,6 @@ def test_start_convert_db(fee, tmp_path):
     assert db_target_file.is_file()
 
 
-def test_start_strategy_updater(mocker, tmp_path):
-    sc_mock = mocker.patch("freqtrade.commands.strategy_utils_commands.start_conversion")
-    teststrats = Path(__file__).parent.parent / "strategy/strats"
-    args = [
-        "strategy-updater",
-        "--userdir",
-        str(tmp_path),
-        "--strategy-path",
-        str(teststrats),
-    ]
-    pargs = get_args(args)
-    pargs["config"] = None
-    start_strategy_update(pargs)
-    # Number of strategies in the test directory
-    assert sc_mock.call_count == 13
-
-    sc_mock.reset_mock()
-    args = [
-        "strategy-updater",
-        "--userdir",
-        str(tmp_path),
-        "--strategy-path",
-        str(teststrats),
-        "--strategy-list",
-        "StrategyTestV3",
-        "StrategyTestV2",
-    ]
-    pargs = get_args(args)
-    pargs["config"] = None
-    start_strategy_update(pargs)
-    # Number of strategies in the test directory
-    assert sc_mock.call_count == 2
-
-
 def test_start_show_config(capsys, caplog):
     args = [
         "show-config",
@@ -2183,17 +2122,3 @@ def test_start_show_config(capsys, caplog):
     assert '"max_open_trades":' in captured.out
     assert '"secret": "REDACTED"' not in captured.out
     assert log_has_re(r"Sensitive information will be shown in the upcoming output.*", caplog)
-
-
-def test_start_edge():
-    args = [
-        "edge",
-        "--config",
-        "tests/testdata/testconfigs/main_test_config.json",
-    ]
-
-    pargs = get_args(args)
-    with pytest.raises(
-        OperationalException, match=r"The Edge module has been deprecated in 2023\.9"
-    ):
-        start_edge(pargs)

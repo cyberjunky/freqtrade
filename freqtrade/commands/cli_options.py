@@ -618,44 +618,6 @@ AVAILABLE_CLI_OPTIONS = {
         choices=["full", "minimal", "advanced"],
         default="full",
     ),
-    # Plot dataframe
-    "indicators1": Arg(
-        "--indicators1",
-        help="Set indicators from your strategy you want in the first row of the graph. "
-        "Space-separated list. Example: `ema3 ema5`. Default: `['sma', 'ema3', 'ema5']`.",
-        nargs="+",
-    ),
-    "indicators2": Arg(
-        "--indicators2",
-        help="Set indicators from your strategy you want in the third row of the graph. "
-        "Space-separated list. Example: `fastd fastk`. Default: `['macd', 'macdsignal']`.",
-        nargs="+",
-    ),
-    "plot_limit": Arg(
-        "--plot-limit",
-        help="Specify tick limit for plotting. Notice: too high values cause huge files. "
-        "Default: %(default)s.",
-        type=check_int_positive,
-        metavar="INT",
-        default=750,
-    ),
-    "plot_auto_open": Arg(
-        "--auto-open",
-        help="Automatically open generated plot.",
-        action="store_true",
-    ),
-    "no_trades": Arg(
-        "--no-trades",
-        help="Skip using trades from backtesting file and DB.",
-        action="store_true",
-    ),
-    "trade_source": Arg(
-        "--trade-source",
-        help="Specify the source for trades (Can be DB or file (backtest file)) "
-        "Default: %(default)s",
-        choices=["DB", "file"],
-        default="file",
-    ),
     "trade_ids": Arg(
         "--trade-ids",
         help="Specify the list of trade ids.",
@@ -821,19 +783,6 @@ AVAILABLE_CLI_OPTIONS = {
             "Specify a path to save the analysis CSVs "
             "if --analysis-to-csv is enabled. Default: user_data/basktesting_results/"
         ),
-    ),
-    "freqaimodel": Arg(
-        "--freqaimodel",
-        help="Specify a custom freqaimodels.",
-        metavar="NAME",
-    ),
-    "freqaimodel_path": Arg(
-        "--freqaimodel-path",
-        help="Specify additional lookup path for freqaimodels.",
-        metavar="PATH",
-    ),
-    "freqai_backtest_live_models": Arg(
-        "--freqai-backtest-live-models", help="Run backtest with ready models.", action="store_true"
     ),
     "minimum_trade_amount": Arg(
         "--minimum-trade-amount",

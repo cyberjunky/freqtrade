@@ -6,7 +6,7 @@ In your configuration, you can use Static Pairlist (defined by the [`StaticPairL
 
 Additionally, [`AgeFilter`](#agefilter), [`DelistFilter`](#delistfilter), [`PrecisionFilter`](#precisionfilter), [`PriceFilter`](#pricefilter), [`ShuffleFilter`](#shufflefilter), [`SpreadFilter`](#spreadfilter) and [`VolatilityFilter`](#volatilityfilter) act as Pairlist Filters, removing certain pairs and/or moving their positions in the pairlist.
 
-If multiple Pairlist Handlers are used, they are chained and a combination of all Pairlist Handlers forms the resulting pairlist the bot uses for trading and backtesting. Pairlist Handlers are executed in the sequence they are configured. You can define either `StaticPairList`, `VolumePairList`, `ProducerPairList`, `RemotePairList`, `MarketCapPairList`, `PercentChangePairList` or `CrossMarketPairList` as the starting Pairlist Handler.
+If multiple Pairlist Handlers are used, they are chained and a combination of all Pairlist Handlers forms the resulting pairlist the bot uses for trading and backtesting. Pairlist Handlers are executed in the sequence they are configured. You can define either `StaticPairList`, `VolumePairList`, `RemotePairList`, `MarketCapPairList`, `PercentChangePairList` or `CrossMarketPairList` as the starting Pairlist Handler.
 
 Inactive markets are always removed from the resulting pairlist. Explicitly blacklisted pairs (those in the `pair_blacklist` configuration setting) are also always removed from the resulting pairlist.
 
@@ -23,7 +23,6 @@ You may also use something like `.*DOWN/BTC` or `.*UP/BTC` to exclude leveraged 
 * [`StaticPairList`](#static-pair-list) (default, if not configured differently)
 * [`VolumePairList`](#volume-pair-list)
 * [`PercentChangePairList`](#percent-change-pair-list)
-* [`ProducerPairList`](#producerpairlist)
 * [`RemotePairList`](#remotepairlist)
 * [`MarketCapPairList`](#marketcappairlist)
 * [`CrossMarketPairList`](#crossmarketpairlist)
@@ -252,31 +251,6 @@ $$ Percent Change = (\frac{Current Close - Previous Close}{Previous Close}) * 10
 
 !!! Note "Backtesting"
     `PercentChangePairList` does not support backtesting mode.
-
-#### ProducerPairList
-
-With `ProducerPairList`, you can reuse the pairlist from a [Producer](producer-consumer.md) without explicitly defining the pairlist on each consumer.
-
-[Consumer mode](producer-consumer.md) is required for this pairlist to work.
-
-The pairlist will perform a check on active pairs against the current exchange configuration to avoid attempting to trade on invalid markets.
-
-You can limit the length of the pairlist with the optional parameter `number_assets`. Using `"number_assets"=0` or omitting this key will result in the reuse of all producer pairs valid for the current setup.
-
-```json
-"pairlists": [
-    {
-        "method": "ProducerPairList",
-        "number_assets": 5,
-        "producer_name": "default",
-    }
-],
-```
-
-!!! Tip "Combining pairlists"
-    This pairlist can be combined with all other pairlists and filters for further pairlist reduction, and can also act as an "additional" pairlist, on top of already defined pairs.
-    `ProducerPairList` can also be used multiple times in sequence, combining the pairs from multiple producers.
-    Obviously in complex such configurations, the Producer may not provide data for all pairs, so the strategy must be fit for this.
 
 #### RemotePairList
 

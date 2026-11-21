@@ -11,7 +11,6 @@ import pytest
 import time_machine
 
 from freqtrade.constants import AVAILABLE_PAIRLISTS
-from freqtrade.data.dataprovider import DataProvider
 from freqtrade.enums import CandleType, RunMode
 from freqtrade.exceptions import OperationalException
 from freqtrade.persistence import LocalTrade, Trade
@@ -58,14 +57,6 @@ def whitelist_conf(default_conf):
             "sort_key": "quoteVolume",
         },
     ]
-    default_conf.update(
-        {
-            "external_message_consumer": {
-                "enabled": True,
-                "producers": [],
-            }
-        }
-    )
     return default_conf
 
 
@@ -2301,11 +2292,6 @@ def test_spreadfilter_invalid_data(mocker, default_conf, markets, tickers, caplo
             None,
         ),
         (
-            {"method": "ProducerPairList"},
-            "[{'ProducerPairList': 'ProducerPairList - default'}]",
-            None,
-        ),
-        (
             {
                 "method": "RemotePairList",
                 "number_assets": 10,
@@ -2479,21 +2465,8 @@ def test_expand_pairlist(wildcardlist, pairs, expected):
             expand_pairlist(wildcardlist, pairs)
     else:
         assert sorted(expand_pairlist(wildcardlist, pairs)) == sorted(expected)
-        conf = {
-            "pairs": wildcardlist,
-            "freqai": {
-                "enabled": True,
-                "feature_parameters": {
-                    "include_corr_pairlist": [
-                        "BTC/USDT:USDT",
-                        "XRP/BUSD",
-                    ]
-                },
-            },
-        }
-        assert sorted(dynamic_expand_pairlist(conf, pairs)) == sorted(
-            [*expected, "BTC/USDT:USDT", "XRP/BUSD"]
-        )
+        conf = {"pairs": wildcardlist}
+        assert sorted(dynamic_expand_pairlist(conf, pairs)) == sorted(expected)
 
 
 @pytest.mark.parametrize(
@@ -2539,85 +2512,6 @@ def test_expand_pairlist_keep_invalid(wildcardlist, pairs, expected):
             expand_pairlist(wildcardlist, pairs, keep_invalid=True)
     else:
         assert sorted(expand_pairlist(wildcardlist, pairs, keep_invalid=True)) == sorted(expected)
-
-
-def test_ProducerPairlist_no_emc(mocker, whitelist_conf):
-    mocker.patch(f"{EXMS}.exchange_has", MagicMock(return_value=True))
-
-    whitelist_conf["pairlists"] = [
-        {
-            "method": "ProducerPairList",
-            "number_assets": 10,
-            "producer_name": "hello_world",
-        }
-    ]
-    del whitelist_conf["external_message_consumer"]
-
-    with pytest.raises(
-        OperationalException,
-        match=r"ProducerPairList requires external_message_consumer to be enabled.",
-    ):
-        get_patched_freqtradebot(mocker, whitelist_conf)
-
-
-def test_ProducerPairlist(mocker, whitelist_conf, markets):
-    mocker.patch(f"{EXMS}.exchange_has", MagicMock(return_value=True))
-    mocker.patch.multiple(
-        EXMS,
-        markets=PropertyMock(return_value=markets),
-        exchange_has=MagicMock(return_value=True),
-    )
-    whitelist_conf["pairlists"] = [
-        {
-            "method": "ProducerPairList",
-            "number_assets": 2,
-            "producer_name": "hello_world",
-        }
-    ]
-    whitelist_conf.update(
-        {
-            "external_message_consumer": {
-                "enabled": True,
-                "producers": [
-                    {
-                        "name": "hello_world",
-                        "host": "null",
-                        "port": 9891,
-                        "ws_token": "dummy",
-                    }
-                ],
-            }
-        }
-    )
-
-    exchange = get_patched_exchange(mocker, whitelist_conf)
-    dp = DataProvider(whitelist_conf, exchange, None)
-    pairs = ["ETH/BTC", "LTC/BTC", "XRP/BTC"]
-    # different producer
-    dp._set_producer_pairs([*pairs, "MEEP/USDT"], "default")
-    pm = PairListManager(exchange, whitelist_conf, dp)
-    pm.refresh_pairlist()
-    assert pm.whitelist == []
-    # proper producer
-    dp._set_producer_pairs(pairs, "hello_world")
-    pm.refresh_pairlist()
-
-    # Pairlist reduced to 2
-    assert pm.whitelist == pairs[:2]
-    assert len(pm.whitelist) == 2
-    whitelist_conf["exchange"]["pair_whitelist"] = ["TKN/BTC"]
-
-    whitelist_conf["pairlists"] = [
-        {"method": "StaticPairList"},
-        {
-            "method": "ProducerPairList",
-            "producer_name": "hello_world",
-        },
-    ]
-    pm = PairListManager(exchange, whitelist_conf, dp)
-    pm.refresh_pairlist()
-    assert len(pm.whitelist) == 4
-    assert pm.whitelist == ["TKN/BTC", *pairs]
 
 
 @pytest.mark.usefixtures("init_persistence")

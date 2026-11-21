@@ -64,10 +64,6 @@ _OPENAPI_TAGS = [
         "description": f"Retrieve hyperopt loss functions - {_WEBSERVER_MODE_ONLY}.",
     },
     {
-        "name": "FreqAI",
-        "description": f"FreqAI related endpoints - {_WEBSERVER_MODE_ONLY}.",
-    },
-    {
         "name": "Download-data",
         "description": f"Download data endpoints - {_WEBSERVER_MODE_ONLY}.",
     },

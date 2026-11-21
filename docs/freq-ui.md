@@ -73,6 +73,114 @@ The plot configuration can be accessed via the "Plot Configurator" (Cog icon) bu
 ![FreqUI - plot configuration](assets/freqUI-plot-configurator-dark.png#only-dark)
 ![FreqUI - plot configuration](assets/freqUI-plot-configurator-light.png#only-light)
 
+#### Plot configuration in the strategy
+
+A plot configuration can be specified in the strategy in the `plot_config` parameter.
+
+Additional features when using `plot_config` include:
+
+* Specify colors per indicator
+* Specify additional subplots
+* Specify indicator pairs to fill area in between
+
+The sample plot configuration below specifies fixed colors for the indicators.
+It also allows multiple subplots to display both MACD and RSI at the same time.
+
+Plot type can be configured using `type` key. Possible types are:
+
+* `scatter` corresponding a scatter plot.
+* `bar` corresponding to a bar plot.
+
+Sample configuration with inline comments explaining the process:
+
+``` python
+@property
+def plot_config(self):
+    """
+        There are a lot of solutions how to build the return dictionary.
+        The only important point is the return value.
+        Example:
+            plot_config = {'main_plot': {}, 'subplots': {}}
+
+    """
+    plot_config = {}
+    plot_config['main_plot'] = {
+        # Configuration for main plot indicators.
+        # Assumes 2 parameters, emashort and emalong to be specified.
+        f'ema_{self.emashort.value}': {'color': 'red'},
+        f'ema_{self.emalong.value}': {'color': '#CCCCCC'},
+        # By omitting color, a random color is selected.
+        'sar': {},
+        # fill area between senkou_a and senkou_b
+        'senkou_a': {
+            'color': 'green', #optional
+            'fill_to': 'senkou_b',
+            'fill_label': 'Ichimoku Cloud', #optional
+            'fill_color': 'rgba(255,76,46,0.2)', #optional
+        },
+        # plot senkou_b, too. Not only the area to it.
+        'senkou_b': {}
+    }
+    plot_config['subplots'] = {
+         # Create subplot MACD
+        "MACD": {
+            'macd': {'color': 'blue', 'fill_to': 'macdhist'},
+            'macdsignal': {'color': 'orange'},
+            'macdhist': {'type': 'bar'}
+        },
+        # Additional subplot RSI
+        "RSI": {
+            'rsi': {'color': 'red'}
+        }
+    }
+
+    return plot_config
+```
+
+??? Note "As attribute (former method)"
+    Assigning `plot_config` is also possible as Attribute (this used to be the default way).
+    This has the disadvantage that strategy parameters are not available, preventing certain configurations from working.
+
+    ``` python
+        plot_config = {
+            'main_plot': {
+                # Configuration for main plot indicators.
+                # Specifies `ema10` to be red, and `ema50` to be a shade of gray
+                'ema10': {'color': 'red'},
+                'ema50': {'color': '#CCCCCC'},
+                # By omitting color, a random color is selected.
+                'sar': {},
+            # fill area between senkou_a and senkou_b
+            'senkou_a': {
+                'color': 'green', #optional
+                'fill_to': 'senkou_b',
+                'fill_label': 'Ichimoku Cloud', #optional
+                'fill_color': 'rgba(255,76,46,0.2)', #optional
+            },
+            # plot senkou_b, too. Not only the area to it.
+            'senkou_b': {}
+            },
+            'subplots': {
+                # Create subplot MACD
+                "MACD": {
+                    'macd': {'color': 'blue', 'fill_to': 'macdhist'},
+                    'macdsignal': {'color': 'orange'},
+                    'macdhist': {'type': 'bar'}
+                },
+                # Additional subplot RSI
+                "RSI": {
+                    'rsi': {'color': 'red'}
+                }
+            }
+        }
+
+    ```
+
+
+!!! Note
+    The above configuration assumes that `ema10`, `ema50`, `senkou_a`, `senkou_b`,
+    `macd`, `macdsignal`, `macdhist` and `rsi` are columns in the DataFrame created by the strategy.
+
 ### Settings
 
 Several UI related settings can be changed by accessing the settings page.

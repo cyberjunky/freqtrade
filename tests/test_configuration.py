@@ -308,7 +308,6 @@ def test_load_config(default_conf, mocker) -> None:
     validated_conf = configuration.load_config()
 
     assert validated_conf.get("strategy_path") is None
-    assert "edge" not in validated_conf
 
 
 def test_load_config_with_params(default_conf, mocker) -> None:
@@ -934,96 +933,6 @@ def test__validate_pricing_rules(default_conf, caplog) -> None:
         validate_config_consistency(conf)
 
 
-def test__validate_freqai_include_timeframes(default_conf, caplog) -> None:
-    conf = deepcopy(default_conf)
-    conf.update(
-        {
-            "freqai": {
-                "enabled": True,
-                "feature_parameters": {
-                    "include_timeframes": ["1m", "5m"],
-                    "include_corr_pairlist": [],
-                },
-                "data_split_parameters": {},
-                "model_training_parameters": {},
-            }
-        }
-    )
-    with pytest.raises(OperationalException, match=r"Main timeframe of .*"):
-        validate_config_consistency(conf)
-    # Validation pass
-    conf.update({"timeframe": "1m"})
-    validate_config_consistency(conf)
-
-    # Ensure base timeframe is in include_timeframes
-    conf["freqai"]["feature_parameters"]["include_timeframes"] = ["5m", "15m"]
-    validate_config_consistency(conf)
-    assert conf["freqai"]["feature_parameters"]["include_timeframes"] == ["1m", "5m", "15m"]
-
-    conf.update({"analyze_per_epoch": True})
-    with pytest.raises(
-        OperationalException,
-        match=r"Using analyze-per-epoch .* not supported with a FreqAI strategy.",
-    ):
-        validate_config_consistency(conf)
-
-
-def test__validate_consumers(default_conf, caplog) -> None:
-    conf = deepcopy(default_conf)
-    conf.update({"external_message_consumer": {"enabled": True, "producers": []}})
-    with pytest.raises(
-        OperationalException, match=r"You must specify at least 1 Producer to connect to\."
-    ):
-        validate_config_consistency(conf)
-
-    conf = deepcopy(default_conf)
-    conf.update(
-        {
-            "external_message_consumer": {
-                "enabled": True,
-                "producers": [
-                    {
-                        "name": "default",
-                        "host": "127.0.0.1",
-                        "port": 8081,
-                        "ws_token": "secret_ws_t0ken.",
-                    },
-                    {
-                        "name": "default",
-                        "host": "127.0.0.1",
-                        "port": 8080,
-                        "ws_token": "secret_ws_t0ken.",
-                    },
-                ],
-            }
-        }
-    )
-    with pytest.raises(
-        OperationalException, match=r"Producer names must be unique\. Duplicate: default"
-    ):
-        validate_config_consistency(conf)
-
-    conf = deepcopy(default_conf)
-    conf.update(
-        {
-            "process_only_new_candles": True,
-            "external_message_consumer": {
-                "enabled": True,
-                "producers": [
-                    {
-                        "name": "default",
-                        "host": "127.0.0.1",
-                        "port": 8081,
-                        "ws_token": "secret_ws_t0ken.",
-                    }
-                ],
-            },
-        }
-    )
-    validate_config_consistency(conf)
-    assert log_has_re("To receive best performance with external data.*", caplog)
-
-
 def test__validate_orderflow(default_conf) -> None:
     conf = deepcopy(default_conf)
     conf["exchange"]["use_public_trades"] = True
@@ -1061,17 +970,6 @@ def test__validate_demo_trading(default_conf_usdt) -> None:
         validate_config_consistency(conf)
     conf["dry_run"] = False
     validate_config_consistency(conf)
-
-
-def test_validate_edge_removal(default_conf):
-    default_conf["edge"] = {
-        "enabled": True,
-    }
-    with pytest.raises(
-        ConfigurationError,
-        match=r"Edge is no longer supported and has been removed from Freqtrade with 2025\.6\.",
-    ):
-        validate_config_consistency(default_conf)
 
 
 def test_load_config_test_comments() -> None:
@@ -1253,7 +1151,6 @@ def test_pairlist_resolving_fallback(mocker, tmp_path):
 @pytest.mark.parametrize(
     "setting",
     [
-        ("webhook", "webhookbuy", "testWEbhook", "webhook", "webhookentry", "testWEbhook"),
         (
             "ask_strategy",
             "ignore_buying_expired_candle_after",
@@ -1513,84 +1410,6 @@ def test_flat_vars_to_nested_dict(caplog):
     assert not log_has("Loading variable 'NOT_RELEVANT'", caplog)
 
 
-def test_setup_hyperopt_freqai(mocker, default_conf) -> None:
-    patched_configuration_load_config_file(mocker, default_conf)
-    mocker.patch("freqtrade.configuration.configuration.create_datadir", lambda c, x: x)
-    mocker.patch(
-        "freqtrade.configuration.configuration.create_userdata_dir",
-        lambda x, *args, **kwargs: Path(x),
-    )
-    arglist = [
-        "hyperopt",
-        "--config",
-        "config.json",
-        "--strategy",
-        CURRENT_TEST_STRATEGY,
-        "--timerange",
-        "20220801-20220805",
-        "--freqaimodel",
-        "LightGBMRegressorMultiTarget",
-        "--analyze-per-epoch",
-    ]
-
-    args = Arguments(arglist).get_parsed_arg()
-
-    configuration = Configuration(args)
-    config = configuration.get_config()
-    config["freqai"] = {"enabled": True}
-    with pytest.raises(
-        OperationalException, match=r".*analyze-per-epoch parameter is not supported.*"
-    ):
-        validate_config_consistency(config)
-
-
-def test_setup_freqai_backtesting(mocker, default_conf) -> None:
-    patched_configuration_load_config_file(mocker, default_conf)
-    mocker.patch("freqtrade.configuration.configuration.create_datadir", lambda c, x: x)
-    mocker.patch(
-        "freqtrade.configuration.configuration.create_userdata_dir",
-        lambda x, *args, **kwargs: Path(x),
-    )
-    arglist = [
-        "backtesting",
-        "--config",
-        "config.json",
-        "--strategy",
-        CURRENT_TEST_STRATEGY,
-        "--timerange",
-        "20220801-20220805",
-        "--freqaimodel",
-        "LightGBMRegressorMultiTarget",
-        "--freqai-backtest-live-models",
-    ]
-
-    args = Arguments(arglist).get_parsed_arg()
-
-    configuration = Configuration(args)
-    config = configuration.get_config()
-    config["runmode"] = RunMode.BACKTEST
-
-    with pytest.raises(
-        OperationalException, match=r".*--freqai-backtest-live-models parameter is only.*"
-    ):
-        validate_config_consistency(config)
-
-    conf = deepcopy(config)
-    conf["freqai"] = {"enabled": True}
-    with pytest.raises(
-        OperationalException, match=r".* timerange parameter is not supported with .*"
-    ):
-        validate_config_consistency(conf)
-
-    conf["timerange"] = None
-    conf["freqai_backtest_live_models"] = False
-
-    with pytest.raises(
-        OperationalException, match=r".* pass --timerange if you intend to use FreqAI .*"
-    ):
-        validate_config_consistency(conf)
-
-
 def test_sanitize_config(default_conf_usdt):
     assert default_conf_usdt["exchange"]["api_key"] != "REDACTED"
     res = sanitize_config(default_conf_usdt)
@@ -1621,9 +1440,6 @@ def test_sanitize_config_empty_values():
 
 def test_sanitize_config_nested_tokens():
     config = {
-        "external_message_consumer": {
-            "producers": [{"name": "producer", "host": "localhost", "ws_token": "producer-token"}]
-        },
         "pairlists": [
             {"method": "StaticPairList"},
             {"method": "RemotePairList", "bearer_token": "pairlist-token"},
@@ -1633,9 +1449,6 @@ def test_sanitize_config_nested_tokens():
 
     result = sanitize_config(config)
 
-    assert result["external_message_consumer"]["producers"] == [
-        {"name": "producer", "host": "localhost", "ws_token": "REDACTED"}
-    ]
     assert result["pairlists"] == [
         {"method": "StaticPairList"},
         {"method": "RemotePairList", "bearer_token": "REDACTED"},

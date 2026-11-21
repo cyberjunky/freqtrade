@@ -5,7 +5,6 @@ from pathlib import Path
 from freqtrade.configuration.detect_environment import running_in_docker
 from freqtrade.constants import (
     USER_DATA_FILES,
-    USERPATH_FREQAIMODELS,
     USERPATH_HYPEROPTS,
     USERPATH_NOTEBOOKS,
     USERPATH_PAIRLISTS,
@@ -62,10 +61,8 @@ def create_userdata_dir(directory: str, create_dir: bool = False) -> Path:
         "hyperopt_results",
         "logs",
         USERPATH_NOTEBOOKS,
-        "plot",
         USERPATH_PAIRLISTS,
         USERPATH_STRATEGIES,
-        USERPATH_FREQAIMODELS,
     ]
     folder = Path(directory)
     chown_user_directory(folder)

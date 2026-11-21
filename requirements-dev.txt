@@ -1,9 +1,6 @@
 # Include all requirements to run the bot.
 -r requirements.txt
--r requirements-plot.txt
 -r requirements-hyperopt.txt
--r requirements-freqai.txt
--r requirements-freqai-rl.txt
 -r docs/requirements-docs.txt
 
 ruff==0.17.4

@@ -69,7 +69,6 @@ dependencies = [
   "psutil",
   "schedule",
   "janus",
-  "ast-comments",
   "aiofiles",
   "aiohttp",
   "cryptography",
@@ -82,27 +81,11 @@ dependencies = [
 
 [project.optional-dependencies]
 # Requirements used for submodules
-plot = ["plotly>=4.0"]
 hyperopt = [
   "cmaes",
   "filelock",
   "optuna>4.0.0",
   "scikit-learn",
-]
-freqai = [
-  "datasieve>=0.1.5",
-  "joblib",
-  "lightgbm",
-  "scikit-learn",
-  "tensorboard",
-  "xgboost",
-]
-freqai_rl = [
-  "gymnasium",
-  "sb3-contrib; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-  "stable-baselines3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-  "torch; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-  "tqdm",
 ]
 develop = [
   "httpx2",
@@ -131,7 +114,7 @@ jupyter = [
   "nbstripout",
 ]
 all = [
-  "freqtrade[plot,hyperopt,freqai,freqai_rl,jupyter]",
+  "freqtrade[hyperopt,jupyter]",
 ]
 dev = [
   "freqtrade[all,develop]",
@@ -289,9 +272,6 @@ extend-ignore = [
 
 
 [tool.ruff.lint.per-file-ignores]
-"freqtrade/freqai/**/*.py" = [
-  "S311",  # Standard pseudo-random generators are not suitable for cryptographic purposes
-]
 "tests/**.py" = [
   "S101",  # allow assert in tests
   "S104",  #  Possible binding to all interfaces

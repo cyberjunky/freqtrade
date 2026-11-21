@@ -3,17 +3,6 @@ services:
   freqtrade:
     image: freqtradeorg/freqtrade:stable
     # image: freqtradeorg/freqtrade:develop
-    # Use plotting image
-    # image: freqtradeorg/freqtrade:develop_plot
-    # # Enable GPU Image and GPU Resources (only relevant for freqAI)
-    # # Make sure to uncomment the whole deploy section
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
     # Build step - only needed when additional dependencies are needed
     # build:
     #   context: .

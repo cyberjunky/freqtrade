@@ -26,7 +26,6 @@ def pair_history(
     timeframe: str,
     timerange: str,
     strategy: StrategyName,
-    freqaimodel: str | None = None,
     config=Depends(get_config),
     exchange=Depends(get_exchange),
 ):
@@ -38,7 +37,6 @@ def pair_history(
             "timeframe": timeframe,
             "strategy": strategy,
             "timerange": timerange,
-            "freqaimodel": freqaimodel if freqaimodel else config_loc.get("freqaimodel"),
         }
     )
     validate_config_consistency(config_loc)
@@ -58,9 +56,6 @@ def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config
             "timeframe": payload.timeframe,
             "strategy": payload.strategy,
             "timerange": payload.timerange,
-            "freqaimodel": (
-                payload.freqaimodel if payload.freqaimodel else config_loc.get("freqaimodel")
-            ),
         }
     )
     handleExchangePayload(payload, config_loc)

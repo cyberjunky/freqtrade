@@ -244,18 +244,7 @@ Mandatory parameters are marked as **Required**, which means that they are requi
 | `telegram.reload` | Allow "reload" buttons on telegram messages. <br>*Defaults to `true`.*<br> **Datatype:** boolean
 | `telegram.notification_settings.*` | Detailed notification settings. Refer to the [telegram documentation](telegram-usage.md) for details.<br> **Datatype:** dictionary
 | `telegram.allow_custom_messages` | Enable the sending of Telegram messages from strategies via the dataprovider.send_msg() function. <br> **Datatype:** Boolean
-| | **Webhook**
-| `webhook.enabled` | Enable usage of Webhook notifications <br> **Datatype:** Boolean
-| `webhook.url` | URL for the webhook. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.entry` | Payload to send on entry. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.entry_cancel` | Payload to send on entry order cancel. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.entry_fill` | Payload to send on entry order filled. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.exit` | Payload to send on exit. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.exit_cancel` | Payload to send on exit order cancel. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.exit_fill` | Payload to send on exit order filled. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.status` | Payload to send on status calls. Only required if `webhook.enabled` is `true`. See the [webhook documentation](webhook-config.md) for more details. <br> **Datatype:** String
-| `webhook.allow_custom_messages` | Enable the sending of Webhook messages from strategies via the dataprovider.send_msg() function. <br> **Datatype:** Boolean
-| | **Rest API / FreqUI / Producer-Consumer**
+| | **Rest API / FreqUI**
 | `api_server.enabled` | Enable usage of API Server. See the [API Server documentation](rest-api.md) for more details. <br> **Datatype:** Boolean
 | `api_server.listen_ip_address` | Bind IP address. See the [API Server documentation](rest-api.md) for more details. <br> **Datatype:** IPv4
 | `api_server.listen_port` | Bind Port. See the [API Server documentation](rest-api.md) for more details. <br>**Datatype:** Integer between 1024 and 65535
@@ -264,7 +253,6 @@ Mandatory parameters are marked as **Required**, which means that they are requi
 | `api_server.password` | Password for API server. See the [API Server documentation](rest-api.md) for more details. <br>**Keep it in secret, do not disclose publicly.**<br> **Datatype:** String
 | `api_server.ws_token` | API token for the Message WebSocket. See the [API Server documentation](rest-api.md) for more details.  <br>**Keep it in secret, do not disclose publicly.** <br> **Datatype:** String
 | `bot_name` | Name of the bot. Passed via API to a client - can be shown to distinguish / name bots.<br> *Defaults to `freqtrade`*<br> **Datatype:** String
-| `external_message_consumer` | Enable [Producer/Consumer mode](producer-consumer.md) for more details. <br> **Datatype:** Dict
 | | **Other**
 | `initial_state` | Defines the initial application state. If set to stopped, then the bot has to be explicitly started via `/start` RPC command. <br>*Defaults to `stopped`.* <br> **Datatype:** Enum, either `running`, `paused` or `stopped`
 | `force_entry_enable` | Enables the RPC Commands to force a Trade entry. More information below. <br> **Datatype:** Boolean
@@ -281,7 +269,7 @@ Mandatory parameters are marked as **Required**, which means that they are requi
 | `add_config_files` | Additional config files. These files will be loaded and merged with the current config file. The files are resolved relative to the initial file.<br> *Defaults to `[]`*. <br> **Datatype:** List of strings
 | `dataformat_ohlcv` | Data format to use to store historical candle (OHLCV) data. <br> *Defaults to `feather`*. <br> **Datatype:** String
 | `dataformat_trades` | Data format to use to store historical trades data. <br> *Defaults to `feather`*. <br> **Datatype:** String
-| `reduce_df_footprint` | Recast all numeric columns to float32/int32, with the objective of reducing ram/disk usage (and decreasing train/inference timing backtesting/hyperopt and in FreqAI). <br> Default: `False`. <br> **Datatype:** Boolean.
+| `reduce_df_footprint` | Recast all numeric columns to float32/int32, with the objective of reducing ram/disk usage (and speeding up backtesting/hyperopt). <br> Default: `False`. <br> **Datatype:** Boolean.
 | `log_config` | Dictionary containing the log config for python logging. [more info](advanced-setup.md#advanced-logging) <br> Default: `FtRichHandler` <br> **Datatype:** dict.
 
 ### Parameters in the strategy

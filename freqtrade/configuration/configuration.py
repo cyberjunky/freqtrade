@@ -100,13 +100,9 @@ class Configuration:
 
         self._process_optimize_options(config)
 
-        self._process_plot_options(config)
-
         self._process_data_options(config)
 
         self._process_analyze_options(config)
-
-        self._process_freqai_options(config)
 
         # Import check_exchange here to avoid import cycle problems
         from freqtrade.exchange.check_exchange import check_exchange
@@ -337,7 +333,6 @@ class Configuration:
             ("backtest_breakdown", "Parameter --breakdown detected ..."),
             ("backtest_cache", "Parameter --cache={} detected ..."),
             ("disableparamexport", "Parameter --disableparamexport detected: {} ..."),
-            ("freqai_backtest_live_models", "Parameter --freqai-backtest-live-models detected ..."),
             ("backtest_notes", "Parameter --notes detected: {} ..."),
         ]
         self._args_to_config_loop(config, configurations)
@@ -395,18 +390,12 @@ class Configuration:
 
         self._args_to_config_loop(config, configurations)
 
-    def _process_plot_options(self, config: Config) -> None:
+    def _process_data_options(self, config: Config) -> None:
         configurations = [
             ("pairs", "Using pairs {}"),
-            ("indicators1", "Using indicators1: {}"),
-            ("indicators2", "Using indicators2: {}"),
             ("trade_ids", "Filtering on trade_ids: {}"),
-            ("plot_limit", "Limiting plot to: {}"),
-            ("plot_auto_open", "Parameter --auto-open detected."),
-            ("trade_source", "Using trades from: {}"),
             ("prepend_data", "Prepend detected. Allowing data prepending."),
             ("erase", "Erase detected. Deleting existing data."),
-            ("no_trades", "Parameter --no-trades detected."),
             ("timeframes", "timeframes --timeframes: {}"),
             ("days", "Detected --days: {}"),
             ("include_inactive", "Detected --include-inactive-pairs: {}"),
@@ -419,7 +408,6 @@ class Configuration:
         ]
         self._args_to_config_loop(config, configurations)
 
-    def _process_data_options(self, config: Config) -> None:
         self._args_to_config(
             config, argname="new_pairs_days", logstring="Detected --new-pairs-days: {}"
         )
@@ -475,15 +463,6 @@ class Configuration:
             logger.info(f"Runmode set to {self.runmode.value}.")
 
         config.update({"runmode": self.runmode})
-
-    def _process_freqai_options(self, config: Config) -> None:
-        self._args_to_config(
-            config, argname="freqaimodel", logstring="Using freqaimodel class name: {}"
-        )
-
-        self._args_to_config(
-            config, argname="freqaimodel_path", logstring="Using freqaimodel path: {}"
-        )
 
     def _args_to_config(
         self,

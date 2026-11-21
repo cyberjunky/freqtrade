@@ -121,7 +121,7 @@ They will allow you to drill deeper into your results, and perform analysis whic
 
 ### Load backtest results to pandas dataframe
 
-Analyze a trades dataframe (also used below for plotting)
+Analyze a trades dataframe
 
 
 ```python
@@ -171,33 +171,6 @@ trades = load_backtest_data(backtest_dir)
 trades.groupby("pair")["exit_reason"].value_counts()
 ```
 
-## Plotting daily profit / equity line
-
-
-```python
-# Plotting equity line (starting with 0 on day 1 and adding daily profit for each backtested day)
-
-import pandas as pd
-import plotly.express as px
-
-from freqtrade.configuration import Configuration
-from freqtrade.data.btanalysis import load_backtest_stats
-
-
-# strategy = 'SampleStrategy'
-# config = Configuration.from_files(["user_data/config.json"])
-# backtest_dir = config["user_data_dir"] / "backtest_results"
-
-stats = load_backtest_stats(backtest_dir)
-strategy_stats = stats["strategy"][strategy]
-
-df = pd.DataFrame(columns=["dates", "equity"], data=strategy_stats["daily_profit"])
-df["equity_daily"] = df["equity"].cumsum()
-
-fig = px.line(df, x="dates", y="equity_daily")
-fig.show()
-```
-
 ### Load live trading results into a pandas dataframe
 
 In case you did already some trading and want to analyze your performance
@@ -228,54 +201,6 @@ from freqtrade.data.btanalysis import analyze_trade_parallelism
 parallel_trades = analyze_trade_parallelism(trades, "5m")
 
 parallel_trades.plot()
-```
-
-## Plot results
-
-Freqtrade offers interactive plotting capabilities based on plotly.
-
-
-```python
-from freqtrade.plot.plotting import generate_candlestick_graph
-
-
-# Limit graph period to keep plotly quick and reactive
-
-# Filter trades to one pair
-trades_red = trades.loc[trades["pair"] == pair]
-
-data_red = data["2019-06-01":"2019-06-10"]
-# Generate candlestick graph
-graph = generate_candlestick_graph(
-    pair=pair,
-    data=data_red,
-    trades=trades_red,
-    indicators1=["sma20", "ema50", "ema55"],
-    indicators2=["rsi", "macd", "macdsignal", "macdhist"],
-)
-```
-
-
-```python
-# Show graph inline
-# graph.show()
-
-# Render graph in a separate window
-graph.show(renderer="browser")
-```
-
-## Plot average profit per trade as distribution graph
-
-
-```python
-import plotly.figure_factory as ff
-
-
-hist_data = [trades.profit_ratio]
-group_labels = ["profit_ratio"]  # name of the dataset
-
-fig = ff.create_distplot(hist_data, group_labels, bin_size=0.01)
-fig.show()
 ```
 
 Feel free to submit an issue or Pull Request enhancing this document if you would like to share ideas on how to best analyze the data.

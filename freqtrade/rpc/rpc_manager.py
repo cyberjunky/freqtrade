@@ -36,20 +36,6 @@ class RPCManager:
 
             self._register(Telegram(self._rpc, config))
 
-        # Enable discord
-        if config.get("discord", {}).get("enabled", False):
-            logger.info("Enabling rpc.discord ...")
-            from freqtrade.rpc.discord import Discord
-
-            self._register(Discord(self._rpc, config))
-
-        # Enable Webhook
-        if config.get("webhook", {}).get("enabled", False):
-            logger.info("Enabling rpc.webhook ...")
-            from freqtrade.rpc.webhook import Webhook
-
-            self._register(Webhook(self._rpc, config))
-
         # Enable local rest api server for cmd line control
         if config.get("api_server", {}).get("enabled", False):
             logger.info("Enabling rpc.api_server")
@@ -63,7 +49,7 @@ class RPCManager:
         """
         Register a rpc module.
         Modules using a queue get a dedicated worker thread, so slow handlers
-        (e.g. a slow webhook endpoint) don't block the bot.
+        (e.g. slow Telegram delivery) don't block the bot.
         """
         self.registered_modules.append(mod)
         if mod._use_queue:

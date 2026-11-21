@@ -2,9 +2,8 @@
 usage: freqtrade backtesting [-h] [-v] [--no-color] [--logfile FILE] [-V]
                              [-c PATH] [-d PATH] [--userdir PATH] [-s NAME]
                              [--strategy-path PATH]
-                             [--recursive-strategy-search]
-                             [--freqaimodel NAME] [--freqaimodel-path PATH]
-                             [-i TIMEFRAME] [--timerange TIMERANGE]
+                             [--recursive-strategy-search] [-i TIMEFRAME]
+                             [--timerange TIMERANGE]
                              [--data-format-ohlcv {json,jsongz,feather,parquet}]
                              [--max-open-trades INT]
                              [--stake-amount STAKE_AMOUNT] [--fee FLOAT]
@@ -18,8 +17,7 @@ usage: freqtrade backtesting [-h] [-v] [--no-color] [--logfile FILE] [-V]
                              [--backtest-filename PATH]
                              [--backtest-directory PATH]
                              [--breakdown {day,week,month,year,weekday} [{day,week,month,year,weekday} ...]]
-                             [--cache {none,day,week,month}]
-                             [--freqai-backtest-live-models] [--notes TEXT]
+                             [--cache {none,day,week,month}] [--notes TEXT]
 
 options:
   -h, --help            show this help message and exit
@@ -84,8 +82,6 @@ options:
   --cache {none,day,week,month}
                         Load a cached backtest result no older than specified
                         age (default: day).
-  --freqai-backtest-live-models
-                        Run backtest with ready models.
   --notes TEXT          Add notes to the backtest results.
 
 Common arguments:
@@ -115,8 +111,5 @@ Strategy arguments:
   --recursive-strategy-search
                         Recursively search for a strategy in the strategies
                         folder.
-  --freqaimodel NAME    Specify a custom freqaimodels.
-  --freqaimodel-path PATH
-                        Specify additional lookup path for freqaimodels.
 
 ```

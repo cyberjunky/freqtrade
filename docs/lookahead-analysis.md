@@ -10,7 +10,6 @@ This means that if your indicators or entry/exit signals look into future candle
 The `lookahead-analysis` command requires historic data to be available.
 To learn how to get data for the pairs and exchange you're interested in,
 head over to the [Data Downloading](data-download.md) section of the documentation.
-`lookahead-analysis` also supports freqai strategies.
 
 This command internally chains backtests and pokes at the strategy to provoke it to show lookahead bias.
 This is done by not looking at the strategy code itself, but at changed indicator values and moved entries/exits compared to the full backtest.
@@ -110,6 +109,3 @@ This applies to every strategy method, not just the ones listed here.
 - limit orders in combination with `custom_entry_price()` and `custom_exit_price()` callbacks can cause late / delayed entries and exits, causing false positives.
 To avoid this - market orders are forced for this command. This implicitly means that `custom_entry_price()` and `custom_exit_price()` callbacks are not called.
 Using `--lookahead-allow-limit-orders` will skip the override and use your configured order types - however has shown to eventually produce false positives.
-- In the results table, the `biased_indicators` column
-will falsely flag FreqAI target indicators defined in `set_freqai_targets()` as biased.  
-**These are not biased and can safely be ignored.**

@@ -45,7 +45,7 @@ class IResolver:
     object_type_str: str
     user_subdir: str | None = None
     initial_search_path: Path | None = None
-    # Optional config setting containing a path (strategy_path, freqaimodel_path)
+    # Optional config setting containing a path (e.g. strategy_path)
     extra_path: str | None = None
 
     @classmethod

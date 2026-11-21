@@ -28,8 +28,6 @@ ARGS_STRATEGY = [
     "strategy",
     "strategy_path",
     "recursive_strategy_search",
-    "freqaimodel",
-    "freqaimodel_path",
 ]
 
 ARGS_TRADE = ["db_url", "sd_notify", "dry_run", "dry_run_wallet", "fee"]
@@ -59,7 +57,6 @@ ARGS_BACKTEST = [
     "exportdirectory",
     "backtest_breakdown",
     "backtest_cache",
-    "freqai_backtest_live_models",
     "backtest_notes",
 ]
 
@@ -84,15 +81,11 @@ ARGS_HYPEROPT = [
     "early_stop",
 ]
 
-ARGS_EDGE = [*ARGS_COMMON_OPTIMIZE]
-
 ARGS_LIST_STRATEGIES = [
     "strategy_path",
     "print_one_column",
     "recursive_strategy_search",
 ]
-
-ARGS_LIST_FREQAIMODELS = ["freqaimodel_path", "print_one_column"]
 
 ARGS_LIST_HYPEROPTS = ["hyperopt_path", "print_one_column"]
 
@@ -187,31 +180,6 @@ ARGS_DOWNLOAD_DATA = [
     "prepend_data",
 ]
 
-ARGS_PLOT_DATAFRAME = [
-    "pairs",
-    "indicators1",
-    "indicators2",
-    "plot_limit",
-    "db_url",
-    "trade_source",
-    "export",
-    "exportfilename",
-    "timerange",
-    "timeframe",
-    "no_trades",
-]
-
-ARGS_PLOT_PROFIT = [
-    "pairs",
-    "timerange",
-    "export",
-    "exportfilename",
-    "db_url",
-    "trade_source",
-    "timeframe",
-    "plot_auto_open",
-]
-
 ARGS_CONVERT_DB = ["db_url", "db_url_from"]
 
 ARGS_INSTALL_UI = ["erase_ui_only", "ui_prerelease", "ui_version", "ui_local"]
@@ -264,8 +232,6 @@ ARGS_ANALYZE_ENTRIES_EXITS = [
 ]
 
 
-ARGS_STRATEGY_UPDATER = ["strategy_list", "strategy_path", "recursive_strategy_search"]
-
 ARGS_LOOKAHEAD_ANALYSIS = [
     a
     for a in ARGS_BACKTEST
@@ -289,17 +255,13 @@ NO_CONF_REQUIRED = [
     "hyperopt-list",
     "hyperopt-show",
     "list-data",
-    "list-freqaimodels",
     "list-hyperoptloss",
     "list-markets",
     "list-pairs",
     "list-strategies",
     "list-timeframes",
-    "plot-dataframe",
-    "plot-profit",
     "show-trades",
     "install-ui",
-    "strategy-updater",
     "trades-to-ohlcv",
 ]
 
@@ -334,7 +296,7 @@ class Arguments:
 
         # Workaround issue in argparse with action='append' and default value
         # (see https://bugs.python.org/issue16399)
-        # Allow no-config for certain commands (like downloading / plotting)
+        # Allow no-config for certain commands (like downloading)
         if "config" in parsed_arg and parsed_arg.config is None:
             if "user_data_dir" in parsed_arg and parsed_arg.user_data_dir is not None:
                 user_dir = parsed_arg.user_data_dir
@@ -393,14 +355,12 @@ class Arguments:
             start_convert_trades,
             start_create_userdir,
             start_download_data,
-            start_edge,
             start_hyperopt,
             start_hyperopt_list,
             start_hyperopt_show,
             start_install_ui,
             start_list_data,
             start_list_exchanges,
-            start_list_freqAI_models,
             start_list_hyperopt_loss_functions,
             start_list_markets,
             start_list_strategies,
@@ -408,12 +368,9 @@ class Arguments:
             start_lookahead_analysis,
             start_new_config,
             start_new_strategy,
-            start_plot_dataframe,
-            start_plot_profit,
             start_recursive_analysis,
             start_show_config,
             start_show_trades,
-            start_strategy_update,
             start_test_pairlist,
             start_trading,
             start_webserver,
@@ -533,15 +490,6 @@ class Arguments:
         analysis_cmd.set_defaults(func=start_analysis_entries_exits)
         self._build_args(optionlist=ARGS_ANALYZE_ENTRIES_EXITS, parser=analysis_cmd)
 
-        # Add edge subcommand
-        edge_cmd = subparsers.add_parser(
-            "edge",
-            # help="Edge module. No longer part of Freqtrade",
-            parents=[_common_parser, _strategy_parser],
-        )
-        edge_cmd.set_defaults(func=start_edge)
-        self._build_args(optionlist=ARGS_EDGE, parser=edge_cmd)
-
         # Add hyperopt subcommand
         hyperopt_cmd = subparsers.add_parser(
             "hyperopt",
@@ -614,15 +562,6 @@ class Arguments:
         list_hyperopt_loss_cmd.set_defaults(func=start_list_hyperopt_loss_functions)
         self._build_args(optionlist=ARGS_LIST_HYPEROPTS, parser=list_hyperopt_loss_cmd)
 
-        # Add list-freqAI Models subcommand
-        list_freqaimodels_cmd = subparsers.add_parser(
-            "list-freqaimodels",
-            help="Print available freqAI models.",
-            parents=[_common_parser],
-        )
-        list_freqaimodels_cmd.set_defaults(func=start_list_freqAI_models)
-        self._build_args(optionlist=ARGS_LIST_FREQAIMODELS, parser=list_freqaimodels_cmd)
-
         # Add list-timeframes subcommand
         list_timeframes_cmd = subparsers.add_parser(
             "list-timeframes",
@@ -665,39 +604,12 @@ class Arguments:
         install_ui_cmd.set_defaults(func=start_install_ui)
         self._build_args(optionlist=ARGS_INSTALL_UI, parser=install_ui_cmd)
 
-        # Add Plotting subcommand
-        plot_dataframe_cmd = subparsers.add_parser(
-            "plot-dataframe",
-            help="Plot candles with indicators.",
-            parents=[_common_parser, _strategy_parser],
-        )
-        plot_dataframe_cmd.set_defaults(func=start_plot_dataframe)
-        self._build_args(optionlist=ARGS_PLOT_DATAFRAME, parser=plot_dataframe_cmd)
-
-        # Plot profit
-        plot_profit_cmd = subparsers.add_parser(
-            "plot-profit",
-            help="Generate plot showing profits.",
-            parents=[_common_parser, _strategy_parser],
-        )
-        plot_profit_cmd.set_defaults(func=start_plot_profit)
-        self._build_args(optionlist=ARGS_PLOT_PROFIT, parser=plot_profit_cmd)
-
         # Add webserver subcommand
         webserver_cmd = subparsers.add_parser(
             "webserver", help="Webserver module.", parents=[_common_parser]
         )
         webserver_cmd.set_defaults(func=start_webserver)
         self._build_args(optionlist=ARGS_WEBSERVER, parser=webserver_cmd)
-
-        # Add strategy_updater subcommand
-        strategy_updater_cmd = subparsers.add_parser(
-            "strategy-updater",
-            help="updates outdated strategy files to the current version",
-            parents=[_common_parser],
-        )
-        strategy_updater_cmd.set_defaults(func=start_strategy_update)
-        self._build_args(optionlist=ARGS_STRATEGY_UPDATER, parser=strategy_updater_cmd)
 
         # Add lookahead_analysis subcommand
         lookahead_analayis_cmd = subparsers.add_parser(

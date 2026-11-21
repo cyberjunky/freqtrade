@@ -183,27 +183,9 @@ def start_list_strategies(args: dict[str, Any]) -> None:
         _print_objs_tabular(strategy_objs, config.get("print_colorized", False))
 
 
-def start_list_freqAI_models(args: dict[str, Any]) -> None:
-    """
-    Print files with FreqAI models custom classes available in the directory
-    """
-    from freqtrade.configuration import setup_utils_configuration
-    from freqtrade.resolvers.freqaimodel_resolver import FreqaiModelResolver
-
-    config = setup_utils_configuration(args, RunMode.UTIL_NO_EXCHANGE)
-
-    model_objs = FreqaiModelResolver.search_all_objects(config, not args["print_one_column"])
-    # Sort alphabetically
-    model_objs = sorted(model_objs, key=lambda x: x["name"])
-    if args["print_one_column"]:
-        print("\n".join([s["name"] for s in model_objs]))
-    else:
-        _print_objs_tabular(model_objs, config.get("print_colorized", False))
-
-
 def start_list_hyperopt_loss_functions(args: dict[str, Any]) -> None:
     """
-    Print files with FreqAI models custom classes available in the directory
+    Print files with hyperopt loss custom classes available in the directory
     """
     from freqtrade.configuration import setup_utils_configuration
     from freqtrade.resolvers.hyperopt_resolver import HyperOptLossResolver

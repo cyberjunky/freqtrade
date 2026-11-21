@@ -127,21 +127,6 @@ def process_temporary_deprecated_settings(config: Config) -> None:
             "notification_settings",
             "entry_cancel",
         )
-    if config.get("webhook"):
-        process_deprecated_setting(config, "webhook", "webhookbuy", "webhook", "webhookentry")
-        process_deprecated_setting(
-            config, "webhook", "webhookbuycancel", "webhook", "webhookentrycancel"
-        )
-        process_deprecated_setting(
-            config, "webhook", "webhookbuyfill", "webhook", "webhookentryfill"
-        )
-        process_deprecated_setting(config, "webhook", "webhooksell", "webhook", "webhookexit")
-        process_deprecated_setting(
-            config, "webhook", "webhooksellcancel", "webhook", "webhookexitcancel"
-        )
-        process_deprecated_setting(
-            config, "webhook", "webhooksellfill", "webhook", "webhookexitfill"
-        )
 
     # Legacy way - having them in experimental ...
 
