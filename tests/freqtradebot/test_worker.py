@@ -257,3 +257,46 @@ def test_worker_heartbeat_stopped(default_conf, mocker, caplog):
     worker._heartbeat_msg -= 70
     worker._worker(old_state=State.STOPPED)
     assert log_has_re(message, caplog)
+
+
+def test_worker_process_running_unexpected_error(mocker, default_conf, caplog) -> None:
+    from sqlalchemy.exc import OperationalError
+
+    from freqtrade.exceptions import PricingError
+    from freqtrade.worker import MAX_CONSECUTIVE_LOOP_ERRORS
+
+    sleep_mock = mocker.patch("freqtrade.worker.time.sleep")
+    rollback_mock = mocker.patch("freqtrade.worker.Trade.rollback")
+    worker = get_patched_worker(mocker, default_conf)
+    worker.freqtrade.state = State.RUNNING
+    status_mock = mocker.patch.object(worker.freqtrade, "notify_status")
+    process_mock = mocker.patch.object(
+        worker.freqtrade, "process", side_effect=PricingError("no price")
+    )
+
+    # A single unexpected error does not stop the bot, and keeps pending DB changes.
+    worker._process_running()
+    assert worker.freqtrade.state is State.RUNNING
+    assert worker._consecutive_errors == 1
+    assert sleep_mock.call_count == 1
+    assert rollback_mock.call_count == 0
+    assert log_has_re(r"Unexpected error in bot loop \(1/.*", caplog)
+
+    # A successful iteration resets the counter.
+    process_mock.side_effect = None
+    worker._process_running()
+    assert worker._consecutive_errors == 0
+
+    # Database errors reset the session.
+    process_mock.side_effect = OperationalError("stmt", {}, Exception("db locked"))
+    worker._process_running()
+    assert rollback_mock.call_count == 1
+    assert worker.freqtrade.state is State.RUNNING
+
+    # Repeated failures stop trading instead of looping forever.
+    process_mock.side_effect = PricingError("no price")
+    for _ in range(MAX_CONSECUTIVE_LOOP_ERRORS - 1):
+        worker._process_running()
+    assert worker.freqtrade.state is State.STOPPED
+    assert status_mock.call_count == 1
+    assert log_has("Too many consecutive errors. Stopping trader ...", caplog)

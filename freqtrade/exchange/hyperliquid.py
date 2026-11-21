@@ -100,6 +100,8 @@ class Hyperliquid(Exchange):
         "download_data_parallel_quick": False,
         # Hyperliquid's orderbook only updates every ~5 seconds
         "ws_enabled": {"ohlcv": True, "orderbook": False},
+        # Hyperliquid only accepts whole-number leverage - size and record trades accordingly.
+        "floor_leverage": True,
     }
     _ft_has_futures: FtHas = {
         "stoploss_on_exchange": True,

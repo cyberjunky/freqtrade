@@ -1173,6 +1173,28 @@ def test_execute_entry_confirm_error(mocker, default_conf_usdt, fee, limit_order
     assert not freqtrade.execute_entry(pair, stake_amount)
 
 
+def test_execute_entry_lookup_failure_places_no_order(mocker, default_conf_usdt, limit_order):
+    """
+    Fee / funding lookups run before the order is created. If one of them fails, no order
+    may reach the exchange - it would be a position the bot has no record of.
+    """
+    freqtrade = get_patched_freqtradebot(mocker, default_conf_usdt)
+    create_order = MagicMock(return_value=limit_order["buy"])
+    mocker.patch.multiple(
+        EXMS,
+        fetch_ticker=MagicMock(return_value={"bid": 1.9, "ask": 2.2, "last": 1.9}),
+        create_order=create_order,
+        get_rate=MagicMock(return_value=0.11),
+        get_min_pair_stake_amount=MagicMock(return_value=1),
+        get_fee=MagicMock(side_effect=TemporaryError("fee lookup failed")),
+    )
+
+    with pytest.raises(TemporaryError):
+        freqtrade.execute_entry("ETH/USDT", 2)
+    assert create_order.call_count == 0
+    assert Trade.session.scalars(select(Trade)).all() == []
+
+
 @pytest.mark.parametrize("is_short", [False, True])
 def test_execute_entry_fully_canceled_on_create(
     mocker, default_conf_usdt, fee, limit_order_open, is_short

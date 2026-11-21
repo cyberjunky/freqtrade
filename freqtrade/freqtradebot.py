@@ -1117,6 +1117,23 @@ class FreqtradeBot(LoggingMixin):
         if trade and self.handle_similar_open_order(trade, enter_limit_requested, amount, side):
             return False
 
+        # Look up everything that can fail (fees, funding - network calls) BEFORE the order is
+        # placed. Once it exists on the exchange, nothing may stand between it and the database
+        # record below - a failure there would leave a position the bot does not know about.
+        # Fee is applied twice because we make a LIMIT_BUY and LIMIT_SELL
+        fee = self.exchange.get_fee(symbol=pair, taker_or_maker="maker")
+        base_currency = self.exchange.get_pair_base_currency(pair)
+        funding_fees = (
+            self.exchange.get_funding_fees(
+                pair=pair,
+                amount=trade.amount,
+                is_short=is_short,
+                open_date=trade.date_last_filled_utc,
+            )
+            if trade
+            else 0
+        )
+
         order = self.exchange.create_order(
             pair=pair,
             ordertype=order_type,
@@ -1168,20 +1185,6 @@ class FreqtradeBot(LoggingMixin):
             enter_limit_filled_price = safe_value_fallback(
                 order, "average", "price", enter_limit_requested
             )
-
-        # Fee is applied twice because we make a LIMIT_BUY and LIMIT_SELL
-        fee = self.exchange.get_fee(symbol=pair, taker_or_maker="maker")
-        base_currency = self.exchange.get_pair_base_currency(pair)
-        funding_fees = (
-            self.exchange.get_funding_fees(
-                pair=pair,
-                amount=trade.amount,
-                is_short=is_short,
-                open_date=trade.date_last_filled_utc,
-            )
-            if trade
-            else 0
-        )
 
         # This is a new trade
         if trade is None:
@@ -1327,8 +1330,8 @@ class FreqtradeBot(LoggingMixin):
                     side=trade_side,
                     entry_tag=entry_tag,
                 )
-            # Cap leverage between 1.0 and max_leverage.
-            leverage = min(max(leverage, 1.0), max_leverage)
+            # Cap leverage between 1.0 and max_leverage (whole numbers where required).
+            leverage = self.exchange.clamp_leverage(leverage, max_leverage)
         else:
             # Changing leverage currently not possible
             leverage = trade.leverage if trade else 1.0

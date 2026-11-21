@@ -892,21 +892,10 @@ class LocalTrade:
                 or (higher_stop and not self.is_short)
                 or (lower_stop and self.is_short)
             ):
-                logger.debug(f"{self.pair} - Adjusting stoploss...")
+                logger.debug("%s - Adjusting stoploss...", self.pair)
                 if not allow_refresh:
                     self.is_stop_loss_trailing = True
                 self.__set_stop_loss(stop_loss_norm, stoploss)
-            else:
-                logger.debug(f"{self.pair} - Keeping current stoploss...")
-
-        logger.debug(
-            f"{self.pair} - Stoploss adjusted. current_price={current_price:.8f}, "
-            f"open_rate={self.open_rate:.8f}, max_rate={self.max_rate or self.open_rate:.8f}, "
-            f"initial_stop_loss={self.initial_stop_loss:.8f}, "
-            f"stop_loss={self.stop_loss:.8f}. "
-            f"Trailing stoploss saved us: "
-            f"{float(self.stop_loss) - float(self.initial_stop_loss or 0.0):.8f}."
-        )
 
     def update_trade(self, order: Order, recalculating: bool = False) -> None:
         """
@@ -1564,6 +1553,7 @@ class LocalTrade:
             LocalTrade.bt_open_open_trade_count += 1
         else:
             LocalTrade.bt_trades.append(trade)
+            LocalTrade.bt_total_profit += trade.close_profit_abs or 0.0
 
     @staticmethod
     def remove_bt_trade(trade):
@@ -1954,10 +1944,9 @@ class Trade(ModelBase, LocalTrade):
                 select(func.sum(Trade.close_profit_abs)).filter(Trade.is_open.is_(False))
             ).scalar_one()
         else:
-            total_profit = sum(
-                t.close_profit_abs  # type: ignore
-                for t in LocalTrade.get_trades_proxy(is_open=False)
-            )
+            # Running total maintained by close_bt_trade / add_bt_trade - avoids re-summing
+            # every closed trade on each entry check during backtesting.
+            total_profit = LocalTrade.bt_total_profit
         return total_profit or 0
 
     @staticmethod

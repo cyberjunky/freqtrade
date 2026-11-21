@@ -1212,6 +1212,11 @@
           "type": "integer",
           "default": 60
         },
+        "live_candle_limit": {
+          "description": "Number of candles kept (and analyzed by the strategy) per pair in dry / live mode. Defaults to startup_candle_count + 500, at least 1000. Larger values are filled with multiple paged calls where the exchange provides history.",
+          "type": "integer",
+          "minimum": 1
+        },
         "ccxt_config": {
           "description": "CCXT configuration settings - applicable to both synchronous and asynchronous usage.",
           "type": "object"

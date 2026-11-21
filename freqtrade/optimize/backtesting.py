@@ -793,8 +793,14 @@ class Backtesting:
         :return: True if the order filled.
         """
         if order and self._get_order_filled(order.ft_price, row):
+            if trade.nr_of_successful_entries > 0:
+                # Accrue funding up to (and including) this candle on the position size held
+                # until now, so the filling order books it before the amount changes.
+                self._run_funding_fees(trade, current_date, force=True)
             order.close_bt_order(current_date, trade)
-            self._run_funding_fees(trade, current_date, force=True)
+            if self.trading_mode == TradingMode.FUTURES:
+                # The funding window restarts at this fill - nothing accrued yet.
+                trade.set_funding_fees(0.0)
             strategy_safe_wrapper(self.strategy.order_filled, supress_error=True)(
                 pair=trade.pair,
                 trade=trade,  # type: ignore[arg-type]
@@ -1005,6 +1011,10 @@ class Backtesting:
                     is_short=trade.is_short,
                     open_date=trade.date_last_filled_utc,
                     close_date=current_time,
+                    # The fill happened inside the candle starting at that date, after any
+                    # funding event at that timestamp - which live trades don't pay either.
+                    # Also prevents charging it twice after a partial exit / position adjustment.
+                    open_inclusive=False,
                 )
             )
 
@@ -1066,8 +1076,8 @@ class Backtesting:
                 if self.trading_mode != TradingMode.SPOT
                 else 1.0
             )
-            # Cap leverage between 1.0 and max_leverage.
-            leverage = min(max(leverage, 1.0), max_leverage)
+            # Cap leverage between 1.0 and max_leverage (whole numbers where required).
+            leverage = self.exchange.clamp_leverage(leverage, max_leverage)
 
         min_stake_amount = (
             self.exchange.get_min_pair_stake_amount(

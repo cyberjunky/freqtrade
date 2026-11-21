@@ -117,6 +117,16 @@ from freqtrade.util.datetime_helpers import dt_humanize_delta, dt_ts, format_ms_
 
 logger = logging.getLogger(__name__)
 
+# Live (dry / live mode) candle frame sizing - see Exchange._live_candle_counts().
+# Smallest frame kept per pair, unless the exchange cannot provide that many.
+LIVE_CANDLE_MIN = 1000
+# Candles kept on top of the strategy's startup_candle_count.
+LIVE_CANDLE_HEADROOM = 500
+# Candles re-requested on top of the missing ones when refreshing a cached frame.
+LIVE_REFRESH_OVERLAP_CANDLES = 5
+# Calls allowed per pair to fill the frame (startup candles / live_candle_limit).
+MAX_OHLCV_CALLS_PER_PAIR = 5
+
 T = TypeVar("T")
 
 
@@ -392,6 +402,37 @@ class Exchange(LoggingMixin):
         self.required_candle_call_count = self.validate_required_startup_candles(
             self._startup_candle_count, config.get("timeframe", "")
         )
+
+    def _live_candle_counts(self, timeframe: str, candle_type: CandleType) -> tuple[int, int]:
+        """
+        Size of the candle frame kept (and analyzed by the strategy) per pair in dry / live mode.
+
+        The frame is sized by what the strategy needs, not by how many candles the exchange
+        happens to return per call: the strategy analyzes the whole frame on every new candle,
+        so an exchange with a 5000-candle page made every pair 5x as expensive as one with a
+        1000-candle page - for the same strategy.
+
+        Default: `startup_candle_count` + LIVE_CANDLE_HEADROOM, at least LIVE_CANDLE_MIN -
+        but never more than was kept before (page size x calls needed for the startup candles).
+        `exchange.live_candle_limit` sets it explicitly; the frame is then filled with as many
+        paged calls as it takes (up to MAX_OHLCV_CALLS_PER_PAIR).
+
+        :return: (candles to fetch for the initial fill, candles to keep in the frame)
+        """
+        candle_limit = self.ohlcv_candle_limit(timeframe, candle_type)
+        startup = self._startup_candle_count
+        configured = self._config.get("exchange", {}).get("live_candle_limit")
+        if configured:
+            max_calls = MAX_OHLCV_CALLS_PER_PAIR if self._ft_has["ohlcv_has_history"] else 1
+            # Never below what the strategy needs to produce a single valid candle.
+            target = max(int(configured), startup + 1)
+            fetch = min(target, candle_limit * max(max_calls, self.required_candle_call_count))
+            return fetch, max(target, fetch)
+
+        target = max(LIVE_CANDLE_MIN, startup + LIVE_CANDLE_HEADROOM)
+        fetch = min(target, candle_limit * self.required_candle_call_count)
+        keep = min(target, candle_limit + startup)
+        return fetch, max(fetch, keep)
 
     def validate_config(self, config: Config) -> None:
         # Check if timeframe is available
@@ -1424,11 +1465,8 @@ class Exchange(LoggingMixin):
                         "cost": order["amount"] * average,
                     }
                 )
-                self.add_dry_order_fee(
-                    pair,
-                    order,
-                    "taker" if immediate else "maker",
-                )
+                # A triggered stop takes liquidity (it is filled at the market fill price above).
+                self.add_dry_order_fee(pair, order, "taker")
             return order
         if (
             order["status"] != "closed"
@@ -2856,23 +2894,32 @@ class Exchange(LoggingMixin):
         since_ms: int | None,
         cache: bool,
     ) -> Coroutine[Any, Any, OHLCVResponse]:
-        not_all_data = cache and self.required_candle_call_count > 1
+        candle_limit = self.ohlcv_candle_limit(timeframe, candle_type)
+        tf_ms = timeframe_to_msecs(timeframe)
+        # Number of candles to request. None: no cache involved - use the exchange page size.
+        fetch_count: int | None = None
+        if cache:
+            # Initial fill of the live frame.
+            fetch_count, _ = self._live_candle_counts(timeframe, candle_type)
         if cache and self._can_use_websocket(self._exchange_ws, pair, timeframe, candle_type):
             # Subscribe to websocket
             self._exchange_ws.schedule_ohlcv(pair, timeframe, candle_type)
 
         if cache and (pair, timeframe, candle_type) in self._klines:
-            candle_limit = self.ohlcv_candle_limit(timeframe, candle_type)
             min_ts = dt_ts(date_minus_candles(timeframe, candle_limit - 5))
 
             if ws_resp := self._try_build_from_websocket(pair, timeframe, candle_type):
                 # We have a usable websocket response
                 return ws_resp
 
+            last_refresh = self._pairs_last_refresh_time.get((pair, timeframe, candle_type), 0)
             # Check if 1 call can get us updated candles without hole in the data.
-            if min_ts < self._pairs_last_refresh_time.get((pair, timeframe, candle_type), 0):
-                # Cache can be used - do one-off call.
-                not_all_data = False
+            if min_ts < last_refresh:
+                # Cache can be used - only the candles since the last refresh are missing.
+                # Requesting just those (plus a few to pick up late corrections) instead of a
+                # full page keeps the per-candle refresh cheap for every pair.
+                missing = max(0, -(-(dt_ts() - last_refresh) // tf_ms))
+                fetch_count = min(candle_limit, missing + LIVE_REFRESH_OVERLAP_CANDLES)
             else:
                 # Time jump detected, evict cache
                 logger.info(
@@ -2880,14 +2927,19 @@ class Exchange(LoggingMixin):
                 )
                 del self._klines[(pair, timeframe, candle_type)]
 
-        if not since_ms and (self._ft_has["ohlcv_require_since"] or not_all_data):
-            # Multiple calls for one pair - to get more history
-            one_call = timeframe_to_msecs(timeframe) * self.ohlcv_candle_limit(
-                timeframe, candle_type, since_ms
+        if not since_ms and (
+            self._ft_has["ohlcv_require_since"]
+            or (fetch_count is not None and fetch_count > candle_limit)
+        ):
+            # Exchange needs a start date, or more candles than one call returns:
+            # page from the start of the wanted range.
+            wanted = (
+                fetch_count
+                if fetch_count is not None
+                else candle_limit * self.required_candle_call_count
             )
-            move_to = one_call * self.required_candle_call_count
             now = timeframe_to_next_date(timeframe)
-            since_ms = dt_ts(now - timedelta(seconds=move_to // 1000))
+            since_ms = dt_ts(now - timedelta(milliseconds=tf_ms * wanted))
 
         if since_ms:
             return self._async_get_historic_ohlcv(
@@ -2896,7 +2948,7 @@ class Exchange(LoggingMixin):
         else:
             # One call ... "regular" refresh
             return self._async_get_candle_history(
-                pair, timeframe, since_ms=since_ms, candle_type=candle_type
+                pair, timeframe, since_ms=since_ms, candle_type=candle_type, limit=fetch_count
             )
 
     def _build_ohlcv_dl_jobs(
@@ -3023,9 +3075,9 @@ class Exchange(LoggingMixin):
                     drop_incomplete=False,
                     candle_type=c_type,
                 )
-                candle_limit = self.ohlcv_candle_limit(timeframe, self._config["candle_type_def"])
                 # Age out old candles
-                ohlcv_df = ohlcv_df.tail(candle_limit + self._startup_candle_count)
+                _, keep_count = self._live_candle_counts(timeframe, c_type)
+                ohlcv_df = ohlcv_df.tail(keep_count)
                 ohlcv_df = ohlcv_df.reset_index(drop=True)
                 self._klines[(pair, timeframe, c_type)] = ohlcv_df
             else:
@@ -3198,10 +3250,13 @@ class Exchange(LoggingMixin):
         timeframe: str,
         candle_type: CandleType,
         since_ms: int | None = None,
+        limit: int | None = None,
     ) -> OHLCVResponse:
         """
         Asynchronously get candle history data using fetch_ohlcv
         :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
+        :param limit: Number of candles to request. Defaults to (and is capped at) the
+            exchange's page size.
         returns tuple: (pair, timeframe, ohlcv_list)
         """
         try:
@@ -3219,6 +3274,8 @@ class Exchange(LoggingMixin):
             candle_limit = self.ohlcv_candle_limit(
                 timeframe, candle_type=candle_type, since_ms=since_ms
             )
+            if limit is not None:
+                candle_limit = max(1, min(candle_limit, limit))
 
             if candle_type == CandleType.FUNDING_RATE:
                 data = await self._fetch_funding_rate_history(
@@ -3943,6 +4000,18 @@ class Exchange(LoggingMixin):
             "maintAmt": float(info["cum"]) if "cum" in info else None,
         }
 
+    def clamp_leverage(self, leverage: float, max_leverage: float) -> float:
+        """
+        Leverage a trade will actually run with: capped between 1.0 and max_leverage, and
+        floored to a whole number on exchanges that only accept integer leverage.
+        Used by live, dry-run and backtesting alike, so the trade record (and therefore
+        margin, liquidation price and profit ratio) matches what the exchange applies.
+        """
+        leverage = min(max(leverage, 1.0), max_leverage)
+        if self._ft_has.get("floor_leverage", False) is True:
+            leverage = float(max(floor(leverage), 1))
+        return leverage
+
     def get_max_leverage(self, pair: str, stake_amount: float | None) -> float:
         """
         Returns the maximum leverage that a pair can be traded at
@@ -4240,6 +4309,8 @@ class Exchange(LoggingMixin):
         is_short: bool,
         open_date: datetime,
         close_date: datetime,
+        *,
+        open_inclusive: bool = True,
     ) -> float:
         """
         calculates the sum of all funding fees that occurred for a pair during a futures trade
@@ -4249,6 +4320,9 @@ class Exchange(LoggingMixin):
         :param is_short: trade direction
         :param open_date: The date and time that the trade started
         :param close_date: The date and time that the trade ended
+        :param open_inclusive: Charge a funding event that falls exactly on open_date.
+            Backtesting passes False: its fills are stamped with the candle open time, but
+            happen inside that candle - after a funding event at that timestamp was settled.
         """
         fees: float = 0
 
@@ -4261,7 +4335,9 @@ class Exchange(LoggingMixin):
             fee_per_unit = df["_ff_fee_per_unit"].to_numpy()
             # Comparing in nanoseconds handles dry/live mode, where open/close dates can carry
             # more precision than the funding candles themselves.
-            first = dates.searchsorted(Timestamp(open_date).value, "left")
+            first = dates.searchsorted(
+                Timestamp(open_date).value, "left" if open_inclusive else "right"
+            )
             last = dates.searchsorted(Timestamp(close_date).value, "right")
             # .tolist() is load-bearing: CPython's sum() applies compensated summation to
             # exact floats, but not to the numpy scalars a bare ndarray would yield.

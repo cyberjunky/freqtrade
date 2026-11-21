@@ -513,6 +513,10 @@ def test_min_roi_reached_custom_roi(default_conf, fee) -> None:
         (0.2, 0.9, ExitType.NONE, None, False, False, 0.3, 0.9, ExitType.NONE, None),
         (0.2, 0.9, ExitType.NONE, None, False, False, -0.2, 0.9, ExitType.STOP_LOSS, None),
         (0.2, 0.9, ExitType.NONE, 0.92, False, False, -0.09, 0.9, ExitType.LIQUIDATION, None),
+        # Price fell through liquidation (0.92) and stoploss (0.9): liquidation comes first.
+        (0.2, 0.9, ExitType.NONE, 0.92, False, False, -0.2, 0.9, ExitType.LIQUIDATION, None),
+        # Liquidation price beyond the stoploss: the stoploss fills first.
+        (0.2, 0.9, ExitType.NONE, 0.85, False, False, -0.2, 0.9, ExitType.STOP_LOSS, None),
         (
             0.2,
             1.14,

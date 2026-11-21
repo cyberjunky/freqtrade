@@ -10,6 +10,7 @@ from os import getpid
 from typing import Any
 
 import sdnotify
+from sqlalchemy.exc import SQLAlchemyError
 
 from freqtrade import __version__
 from freqtrade.configuration import Configuration
@@ -18,9 +19,13 @@ from freqtrade.enums import RPCMessageType, State
 from freqtrade.exceptions import OperationalException, TemporaryError
 from freqtrade.exchange import timeframe_to_next_date
 from freqtrade.freqtradebot import FreqtradeBot
+from freqtrade.persistence import Trade
 
 
 logger = logging.getLogger(__name__)
+
+# Number of consecutive unexpected bot-loop failures after which trading is stopped.
+MAX_CONSECUTIVE_LOOP_ERRORS = 5
 
 
 class Worker:
@@ -39,6 +44,7 @@ class Worker:
         self._init(False)
 
         self._heartbeat_msg: float = 0
+        self._consecutive_errors = 0
 
         # Tell systemd that we completed initialization phase
         self._notify("READY=1")
@@ -197,6 +203,7 @@ class Worker:
     def _process_running(self) -> None:
         try:
             self.freqtrade.process()
+            self._consecutive_errors = 0
         except TemporaryError as error:
             logger.warning(f"Error: {error}, retrying in {RETRY_TIMEOUT} seconds...")
             time.sleep(RETRY_TIMEOUT)
@@ -210,6 +217,40 @@ class Worker:
 
             logger.exception("OperationalException. Stopping trader ...")
             self.freqtrade.state = State.STOPPED
+        except Exception as error:
+            # Any other failure (e.g. a PricingError while replacing an order) used to end the
+            # process, leaving open positions unmanaged. Keep managing them instead, but stop
+            # trading if the error keeps repeating.
+            self._consecutive_errors += 1
+            if isinstance(error, SQLAlchemyError):
+                # A failed flush leaves the session unusable until rolled back. Other errors
+                # deliberately keep pending changes: they may record an order that already
+                # exists on the exchange.
+                self._rollback_session()
+            logger.exception(
+                f"Unexpected error in bot loop ({self._consecutive_errors}/"
+                f"{MAX_CONSECUTIVE_LOOP_ERRORS}): {error!r}"
+            )
+            if self._consecutive_errors >= MAX_CONSECUTIVE_LOOP_ERRORS:
+                tb = traceback.format_exc()
+                hint = "Issue `/start` if you think it is safe to restart."
+                self.freqtrade.notify_status(
+                    f"*Repeated unexpected error:*\n```\n{tb}```\n {hint}",
+                    msg_type=RPCMessageType.EXCEPTION,
+                )
+                logger.error("Too many consecutive errors. Stopping trader ...")
+                self._consecutive_errors = 0
+                self.freqtrade.state = State.STOPPED
+            else:
+                time.sleep(RETRY_TIMEOUT)
+
+    @staticmethod
+    def _rollback_session() -> None:
+        """Reset the database session after a database error."""
+        try:
+            Trade.rollback()
+        except Exception:
+            logger.exception("Could not roll back the database session.")
 
     def _reconfigure(self) -> None:
         """

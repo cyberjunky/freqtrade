@@ -37,10 +37,17 @@ def strategy_safe_wrapper[F: Callable[..., Any]](
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
-            if not (getattr(f, "__qualname__", "")).startswith("IStrategy.") and "trade" in kwargs:
+            trade = kwargs.get("trade")
+            if (
+                trade is not None
+                and getattr(trade, "use_db", True)
+                and not (getattr(f, "__qualname__", "")).startswith("IStrategy.")
+            ):
                 # Protect accidental modifications from within the strategy
                 # but don't deep-copy if the function is not implemented in the user strategy.
-                kwargs["trade"] = deepcopy(kwargs["trade"])
+                # Skipped in backtesting / hyperopt (use_db is False), where the copy costs far
+                # more than the callback itself and is paid per open trade per candle.
+                kwargs["trade"] = deepcopy(trade)
             return f(*args, **kwargs)
         except ValueError as error:
             traceback = __format_traceback(error)

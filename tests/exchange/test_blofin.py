@@ -559,6 +559,45 @@ async def test_blofin_mark_candles_use_after_cursor(default_conf, mocker):
     assert all(len(r) == 6 and r[5] == 0.0 for r in data)
 
 
+async def test_blofin_candle_volume_is_base_currency(default_conf, mocker):
+    """
+    Regular candles are [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]: `vol` counts
+    contracts, `volCcy` is the base-currency volume freqtrade expects (row taken from the
+    live API: 12654 contracts of 0.001 BTC = 12.654 BTC).
+    A latest-candles refresh may ask for fewer candles than a full page.
+    """
+    real = ccxt.blofin()
+    exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
+    exchange._api_async.safe_list = real.safe_list
+    exchange._api_async.safe_string = real.safe_string
+    exchange._api_async.timeframes = real.timeframes
+    exchange._api.market = lambda _pair: {"id": "BTC-USDT"}
+    captured: dict = {}
+
+    async def fake_request(path, api="public", method="GET", params=None, *a, **k):
+        captured["path"] = path
+        captured["params"] = params
+        return {
+            "code": "0",
+            "data": [
+                ["1795244400000", "57976.2", "58028", "57724.2", "57724.9",
+                 "12654", "12.654", "732234.17796", "0"],
+                # Reply without base volume (e.g. through a proxy): contracts as last resort.
+                ["1795240800000", "55787.4", "58084.1", "55200", "58045.7", "1661326"],
+            ],
+        }
+
+    exchange._api_async.request = fake_request
+    _, _, _, data, _ = await exchange._async_get_candle_history(
+        "BTC/USDT:USDT", "1h", CandleType.FUTURES, None, count=0, limit=9
+    )
+    assert captured["path"] == "market/candles"
+    assert captured["params"]["limit"] == 9
+    assert "after" not in captured["params"]
+    assert data[0][5] == 1661326.0
+    assert data[1][5] == 12.654
+
+
 # ─── get_tickers (quoteVolume fixup) ─────────────────────────────────────
 
 
@@ -729,22 +768,30 @@ def test_blofin_get_funding_fees_spot_returns_zero(default_conf, mocker):
     exchange._get_funding_fees_from_exchange.assert_not_called()
 
 
-def test_blofin_get_funding_fees_dry_run_returns_zero_silently(default_conf, mocker):
+def test_blofin_get_funding_fees_dry_run_simulates(default_conf, mocker, caplog):
     """
-    Dry-run futures: BloFin has no fetchMarkOHLCV so we can't simulate funding.
-    Must return 0.0 without calling the exchange or the simulator.
+    Dry-run futures: funding is simulated from funding rate x mark price (as in backtesting),
+    never read from the private account endpoint. Simulation errors degrade to 0.0.
     """
+    from freqtrade.exceptions import TemporaryError
+
     now = datetime.now(UTC)
     default_conf["dry_run"] = True
     default_conf["trading_mode"] = "futures"
     default_conf["margin_mode"] = "isolated"
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin")
-    exchange._get_funding_fees_from_exchange = MagicMock()
-    exchange._fetch_and_calculate_funding_fees = MagicMock()
+    exchange._fetch_blofin_funding_fees = MagicMock()
+    exchange._fetch_and_calculate_funding_fees = MagicMock(return_value=-0.42)
     result = exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now)
-    assert result == 0.0
-    exchange._get_funding_fees_from_exchange.assert_not_called()
-    exchange._fetch_and_calculate_funding_fees.assert_not_called()
+    assert result == -0.42
+    exchange._fetch_and_calculate_funding_fees.assert_called_once_with(
+        "BTC/USDT:USDT", 1.0, False, now
+    )
+    exchange._fetch_blofin_funding_fees.assert_not_called()
+
+    exchange._fetch_and_calculate_funding_fees = MagicMock(side_effect=TemporaryError("down"))
+    assert exchange.get_funding_fees("BTC/USDT:USDT", 1.0, False, now) == 0.0
+    assert log_has_re(r"Could not update funding fees for BTC/USDT:USDT", caplog)
 
 
 def test_blofin_get_funding_fees_live_uses_account_endpoint(default_conf, mocker):
@@ -1025,9 +1072,29 @@ def test_blofin_get_funding_fees_dry_run_and_errors(default_conf, mocker, caplog
     default_conf["trading_mode"] = TradingMode.FUTURES
     default_conf["margin_mode"] = MarginMode.ISOLATED
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
-    assert exchange.get_funding_fees("ETH/USDT:USDT", 1.0, False, datetime.now(UTC)) == 0.0   # dry-run: silent 0
+    # dry-run: simulated, private endpoint untouched
+    exchange._fetch_and_calculate_funding_fees = MagicMock(return_value=0.0)
+    assert exchange.get_funding_fees("ETH/USDT:USDT", 1.0, False, datetime.now(UTC)) == 0.0
+    assert api_mock.request.call_count == 0
     default_conf["dry_run"] = False
     exchange = get_patched_exchange(mocker, default_conf, exchange="blofin", api_mock=api_mock)
     mocker.patch(f"{EXMS}.markets", PropertyMock(return_value={"ETH/USDT:USDT": {"id": "ETH-USDT"}}))
     assert exchange.get_funding_fees("ETH/USDT:USDT", 1.0, False, datetime.now(UTC) - timedelta(hours=1)) == 0.0
     assert log_has_re(r"Could not update funding fees for ETH/USDT:USDT", caplog)
+
+
+@pytest.mark.parametrize(
+    "exchange_name,leverage,max_leverage,expected",
+    [
+        ("blofin", 2.5, 10, 2.0),
+        ("blofin", 0.4, 10, 1.0),
+        ("blofin", 25.0, 10.5, 10.0),
+        ("hyperliquid", 3.9, 5, 3.0),
+        ("kraken", 2.5, 5, 2.5),
+        ("kraken", 9.0, 5, 5.0),
+    ],
+)
+def test_clamp_leverage(default_conf, mocker, exchange_name, leverage, max_leverage, expected):
+    """Leverage recorded on the trade (live, dry-run, backtest) is what the exchange applies."""
+    exchange = get_patched_exchange(mocker, default_conf, exchange=exchange_name)
+    assert exchange.clamp_leverage(leverage, max_leverage) == expected

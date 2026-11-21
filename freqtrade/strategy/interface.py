@@ -1465,6 +1465,17 @@ class IStrategy(ABC, HyperStrategyMixin):
             and trade.is_short
         )
 
+        liq_hit = liq_higher_long or liq_lower_short
+        if liq_hit and (
+            trade.liquidation_price <= trade.stop_loss
+            if trade.is_short
+            else trade.liquidation_price >= trade.stop_loss
+        ):
+            # The liquidation price sits before the stoploss (wide stop, high leverage): the
+            # position is liquidated on the way to the stop, which can therefore never fill.
+            logger.debug(f"{trade.pair} - Liquidation price hit. exit_type=ExitType.LIQUIDATION")
+            return ExitCheckTuple(exit_type=ExitType.LIQUIDATION)
+
         # evaluate if the stoploss was hit if stoploss is not on exchange
         # in Dry-Run, this handles stoploss logic as well, as the logic will not be different to
         # regular stoploss handling.
@@ -1486,7 +1497,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
             return ExitCheckTuple(exit_type=exit_type)
 
-        if liq_higher_long or liq_lower_short:
+        if liq_hit:
             logger.debug(f"{trade.pair} - Liquidation price hit. exit_type=ExitType.LIQUIDATION")
             return ExitCheckTuple(exit_type=ExitType.LIQUIDATION)
 

@@ -131,6 +131,8 @@ class Blofin(Exchange):
         # needs. Net result with WS on: zero reuse, just connection overhead + log
         # spam. REST fallback already serves correct data, so run REST-only.
         "ws_enabled": False,
+        # set_leverage is called with a whole number - size and record trades accordingly.
+        "floor_leverage": True,
     }
 
     _ft_has_futures: FtHas = {
@@ -241,13 +243,15 @@ class Blofin(Exchange):
             params["positionSide"] = "net"  # one-way mode — no split long/short
         return params
 
-    @retrier
     def _lev_prep(self, pair: str, leverage: float, side: BuySell, accept_fail: bool = False):
         """
         Set margin mode then leverage before order creation.
 
         BloFin's ``set_leverage`` requires the ``marginMode`` param; the base
         class doesn't pass it, so we re-implement here.
+
+        Not wrapped in ``@retrier`` itself: both steps retry on their own. Retrying the pair
+        of them again multiplied the attempts (up to 25 calls for one failing order).
         """
         if self.trading_mode == TradingMode.SPOT or self.margin_mode is None:
             return
@@ -259,7 +263,10 @@ class Blofin(Exchange):
 
         if not self.exchange_has("setLeverage"):
             return
+        self._set_blofin_leverage(pair, leverage, accept_fail)
 
+    @retrier
+    def _set_blofin_leverage(self, pair: str, leverage: float, accept_fail: bool = False):
         try:
             res = self._api.set_leverage(
                 leverage=int(leverage),
@@ -579,6 +586,7 @@ class Blofin(Exchange):
         timeframe: str,
         candle_type: CandleType,
         since_ms: int | None = None,
+        limit: int | None = None,
     ) -> OHLCVResponse:
         """
         Fetch OHLCV(-like) candles, fixing two BloFin/ccxt gaps:
@@ -600,6 +608,11 @@ class Blofin(Exchange):
             candle_limit = self.ohlcv_candle_limit(
                 timeframe, candle_type=candle_type, since_ms=since_ms
             )
+            if limit is not None and since_ms is None:
+                # Latest-candles refresh asking for fewer than a full page. Not applied to
+                # windowed (since_ms) requests: their `after` cursor is derived from the
+                # page size, which must stay fixed while paging through history.
+                candle_limit = max(1, min(candle_limit, limit))
 
             if candle_type == CandleType.FUNDING_RATE:
                 data = await self._fetch_funding_rate_history(
@@ -697,6 +710,17 @@ class Blofin(Exchange):
         has_volume = candle_type not in (CandleType.MARK, CandleType.INDEX)
         candles: list = []
         for r in rows:
+            # Volume in base currency is column 6 (volCcy). Column 5 (vol) counts contracts,
+            # which is off by the contract size (x1000 for BTC) and not comparable between
+            # pairs. Fall back to column 5 only when a reply carries no base volume.
+            if not has_volume:
+                volume = 0.0
+            elif len(r) > 6:
+                volume = float(r[6])
+            elif len(r) > 5:
+                volume = float(r[5])
+            else:
+                volume = 0.0
             candles.append(
                 [
                     int(r[0]),
@@ -704,12 +728,7 @@ class Blofin(Exchange):
                     float(r[2]),
                     float(r[3]),
                     float(r[4]),
-                    # `> 5`, not `> 6`: index 5 needs six columns, not seven.
-                    # Native BloFin sends nine so the old bound passed by
-                    # luck, but any six-column reply (e.g. from a proxy) fell
-                    # to 0.0 and silently zeroed volume on every candle —
-                    # which disables any strategy gating on volume > 0.
-                    float(r[5]) if has_volume and len(r) > 5 else 0.0,
+                    volume,
                 ]
             )
         return candles
@@ -728,14 +747,15 @@ class Blofin(Exchange):
         negative = paid). We page through 7-day windows and sum ``fundingFee`` for the
         pair, which matches the sign convention of ccxt's funding history ``amount``.
 
-        Dry-run returns ``0.0``: BloFin has no mark-price candles, so the base class
-        cannot simulate funding from rate x mark.
+        Dry-run simulates funding from funding rate x mark price (the same calculation
+        backtesting uses), based on the mark-price candles and funding-rate history this
+        adapter fetches itself - so dry-run profit includes funding like live and backtest.
         """
         if self.trading_mode != TradingMode.FUTURES:
             return 0.0
-        if self._config.get("dry_run"):
-            return 0.0
         try:
+            if self._config.get("dry_run"):
+                return self._fetch_and_calculate_funding_fees(pair, amount, is_short, open_date)
             return self._fetch_blofin_funding_fees(pair, open_date)
         except (TemporaryError, ExchangeError, ccxt.BaseError) as e:
             logger.warning("Could not update funding fees for %s: %s", pair, e)

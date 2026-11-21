@@ -1055,8 +1055,9 @@ def test_backtest_one_detail(default_conf_usdt, mocker, testdatadir, use_detail)
 @pytest.mark.parametrize(
     "use_detail,exp_funding_fee, exp_ff_updates",
     [
-        (True, -0.0180457882, 15),
-        (False, -0.0178000543, 12),
+        # Trade 2 opens in the 16:00 candle - after the 16:00 funding event - and closes 17:10.
+        (True, 0.0, 11),
+        (False, -0.0178000543, 10),
     ],
 )
 def test_backtest_one_detail_futures(
@@ -1166,8 +1167,9 @@ def test_backtest_one_detail_futures(
 @pytest.mark.parametrize(
     "use_detail,entries,max_stake,ff_updates,expected_ff",
     [
-        (True, 50, 3000, 78, -1.17988972),
-        (False, 6, 360, 34, -0.14673681),
+        # Each funding event is charged once, on the position size held when it settled.
+        (True, 50, 3000, 77, -1.0234895294),
+        (False, 6, 360, 33, -0.1227223067),
     ],
 )
 def test_backtest_one_detail_futures_funding_fees(

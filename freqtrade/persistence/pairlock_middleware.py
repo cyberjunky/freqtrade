@@ -159,7 +159,7 @@ class PairLocks:
             PairLock.session.commit()
         else:
             # used in backtesting mode; don't show log messages for speed
-            locksb = PairLocks.get_pair_locks(None)
+            locksb = PairLocks.get_pair_locks(None, now)
             for lock in locksb:
                 if lock.reason == reason:
                     lock.active = False
@@ -184,6 +184,19 @@ class PairLocks:
         """
         if not now:
             now = datetime.now(UTC)
+
+        if not PairLocks.use_db:
+            # Backtesting hot path (checked for every entry signal): one pass over the locks,
+            # stopping at the first match, instead of building two filtered lists.
+            for lock in PairLocks.locks:
+                if (
+                    lock.lock_end_time > now
+                    and lock.active is True
+                    and (lock.pair == pair or lock.pair == "*")
+                    and (lock.side == "*" or lock.side == side)
+                ):
+                    return True
+            return False
 
         return len(PairLocks.get_pair_locks(pair, now, side)) > 0 or PairLocks.is_global_lock(
             now, side

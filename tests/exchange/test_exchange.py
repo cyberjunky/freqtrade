@@ -1391,7 +1391,8 @@ def test_check_dry_limit_order_filled(
     "immediate,crossed,expected_status,expected_fee_type",
     [
         (True, True, "closed", "taker"),
-        (False, True, "closed", "maker"),
+        # A triggered stop is filled at market - taker fee.
+        (False, True, "closed", "taker"),
         (True, False, "open", None),
     ],
 )
@@ -3096,6 +3097,78 @@ def test_needed_candle_for_trades_ms(mocker, default_conf, time_machine) -> None
     # 801 candles * 5m = 4005 minutes ~= 2.8 days
     expected = dt_ts(next_candle - timedelta(minutes=801 * 5))
     assert exchange.needed_candle_for_trades_ms(tf, CandleType.SPOT) == expected
+
+
+@pytest.mark.parametrize(
+    "candle_limit,startup,calls,has_history,configured,expected",
+    [
+        # Large exchange page: frame sized by need, not by the page.
+        (5000, 200, 1, False, None, (1000, 1000)),
+        (1440, 0, 1, True, None, (1000, 1000)),
+        # Strategy needs more than the minimum: startup + headroom.
+        (5000, 1500, 1, False, None, (2000, 2000)),
+        # Small exchange page: nothing more is fetched than before, the frame grows as before.
+        (720, 100, 1, True, None, (720, 820)),
+        (720, 600, 1, True, None, (720, 1100)),
+        # Startup candles need several calls.
+        (500, 900, 2, True, None, (1000, 1400)),
+        # Explicit setting: paged where history is available ...
+        (1440, 100, 1, True, 3000, (3000, 3000)),
+        (1440, 100, 1, True, 20000, (7200, 20000)),
+        # ... one call where it is not (the frame then grows over time) ...
+        (5000, 100, 1, False, 8000, (5000, 8000)),
+        # ... and never below what the strategy needs.
+        (1440, 400, 1, True, 300, (401, 401)),
+    ],
+)
+def test__live_candle_counts(
+    mocker, default_conf, candle_limit, startup, calls, has_history, configured, expected
+) -> None:
+    if configured:
+        default_conf["exchange"]["live_candle_limit"] = configured
+    exchange = get_patched_exchange(mocker, default_conf)
+    mocker.patch(f"{EXMS}.ohlcv_candle_limit", return_value=candle_limit)
+    exchange._ft_has["ohlcv_has_history"] = has_history
+    exchange._startup_candle_count = startup
+    exchange.required_candle_call_count = calls
+    assert exchange._live_candle_counts("5m", CandleType.SPOT) == expected
+
+
+def test_refresh_latest_ohlcv_live_frame(mocker, default_conf, time_machine) -> None:
+    """
+    The initial fill requests the live frame (not the exchange page size), a refresh requests
+    only the candles since the last one, and the cached frame is capped at the live frame size.
+    """
+    start = datetime(2021, 8, 1, 0, 0, 0, 0, tzinfo=UTC)
+    ohlcv = generate_test_data_raw("1h", 1200, start.strftime("%Y-%m-%d"))
+    time_machine.move_to(start + timedelta(hours=1199, minutes=30))
+
+    exchange = get_patched_exchange(mocker, default_conf)
+    exchange._set_startup_candle_count(default_conf)
+    mocker.patch(f"{EXMS}.ohlcv_candle_limit", return_value=5000)
+    pair = ("IOTA/ETH", "1h", CandleType.SPOT)
+
+    exchange._api_async.fetch_ohlcv = AsyncMock(return_value=ohlcv[-1000:])
+    res = exchange.refresh_latest_ohlcv([pair])
+    assert exchange._api_async.fetch_ohlcv.call_count == 1
+    assert exchange._api_async.fetch_ohlcv.call_args.kwargs["limit"] == 1000
+    assert exchange._api_async.fetch_ohlcv.call_args.kwargs["since"] is None
+    # Incomplete candle dropped
+    assert len(res[pair]) == 999
+
+    # Two candles later: only the missing candles (plus overlap) are requested.
+    time_machine.move_to(start + timedelta(hours=1201, minutes=30))
+    new_ohlcv = generate_test_data_raw("1h", 1202, start.strftime("%Y-%m-%d"))
+    exchange._api_async.fetch_ohlcv = AsyncMock(return_value=new_ohlcv[-9:])
+    res = exchange.refresh_latest_ohlcv([pair])
+    assert exchange._api_async.fetch_ohlcv.call_count == 1
+    # 3h30 since the last complete candle opened -> 4 candles + 5 overlap
+    assert exchange._api_async.fetch_ohlcv.call_args.kwargs["limit"] == 9
+    # Frame is capped at the live frame size, gapless, and ends on the last complete candle.
+    assert len(res[pair]) == 1000
+    assert res[pair]["date"].is_monotonic_increasing
+    assert res[pair]["date"].diff().dropna().nunique() == 1
+    assert res[pair].iloc[-1]["date"] == start + timedelta(hours=1200)
 
 
 @pytest.mark.parametrize("candle_type", [CandleType.FUTURES, CandleType.MARK, CandleType.SPOT])
@@ -6049,6 +6122,31 @@ def test_calculate_backoff(remaining_retries, max_retries, expected):
     assert calculate_backoff(remaining_retries, max_retries) == expected
 
 
+def test_retrier_delays_temporary_errors(mocker, monkeypatch):
+    from freqtrade.exchange import common
+
+    monkeypatch.setattr(common, "TEMPORARY_ERROR_RETRY_DELAY", 0.25)
+    # Delay grows with each attempt and is jittered.
+    for attempt in range(1, 5):
+        assert 0.25 * attempt <= common.calculate_retry_delay(attempt) < 0.25 * (attempt + 1)
+
+    sleep_mock = mocker.patch("freqtrade.exchange.common.time.sleep")
+    calls = MagicMock(side_effect=TemporaryError("exchange down"))
+
+    @common.retrier(retries=3)
+    def flaky():
+        return calls()
+
+    with pytest.raises(TemporaryError):
+        flaky()
+    assert calls.call_count == 4
+    # Every retry waited - none was fired immediately.
+    delays = [c.args[0] for c in sleep_mock.call_args_list]
+    assert len(delays) == 3
+    assert all(d > 0 for d in delays)
+    assert delays == sorted(delays)
+
+
 @pytest.mark.parametrize("exchange_name", EXCHANGES)
 def test_get_funding_fees(default_conf_usdt, mocker, exchange_name, caplog):
     now = datetime.now(UTC)
@@ -6341,6 +6439,34 @@ def test_calculate_funding_fees(default_conf, mocker, size, funding_rate, mark_p
         )
         == funding_fee
     )
+
+    # A funding event exactly on open_date is charged by default ...
+    one_event = exchange.calculate_funding_fees(
+        df, amount=size, is_short=True, open_date=trade_date, close_date=now_dt
+    )
+    if funding_fee:
+        assert one_event == pytest.approx(size * mark_price * funding_rate)
+    # ... but not with open_inclusive=False (backtesting - fill happens within that candle).
+    assert (
+        exchange.calculate_funding_fees(
+            df,
+            amount=size,
+            is_short=True,
+            open_date=trade_date,
+            close_date=now_dt,
+            open_inclusive=False,
+        )
+        == 0.0
+    )
+    # Events after open_date are unaffected by the flag.
+    assert exchange.calculate_funding_fees(
+        df,
+        amount=size,
+        is_short=True,
+        open_date=prior_date,
+        close_date=now_dt,
+        open_inclusive=False,
+    ) == pytest.approx(one_event)
 
 
 @pytest.mark.parametrize(

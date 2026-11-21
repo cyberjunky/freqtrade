@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 import time
 from collections.abc import Callable
 from functools import wraps
@@ -111,6 +112,20 @@ EXCHANGE_HAS_OPTIONAL_FUTURES: dict[str, list[str]] = {
 }
 
 
+# Base delay (seconds) before retrying after a plain TemporaryError (network hiccup, exchange
+# 5xx). Grows with each attempt and is jittered, so a struggling endpoint is not hit again
+# immediately - and not by all pairs at the same instant.
+TEMPORARY_ERROR_RETRY_DELAY = 0.25
+
+
+def calculate_retry_delay(attempt: int) -> float:
+    """
+    Delay before retry number ttempt (1-based) after a TemporaryError.
+    Roughly 0.25-0.5s, 0.5-0.75s, 0.75-1s, 1-1.25s with the default base delay.
+    """
+    return TEMPORARY_ERROR_RETRY_DELAY * (attempt + random.random())  # noqa: S311
+
+
 def calculate_backoff(remaining_retries, max_retries):
     """
     Calculate backoff
@@ -148,6 +163,8 @@ def retrier_async(f):
                         backoff_delay = calculate_backoff(count + 1, API_RETRY_COUNT)
                         logger.info(f"Applying DDosProtection backoff delay: {backoff_delay}")
                         await asyncio.sleep(backoff_delay)
+                else:
+                    await asyncio.sleep(calculate_retry_delay(API_RETRY_COUNT - count))
                 if msg:
                     logger.warning(msg)
                 return await wrapper(*args, **kwargs)
@@ -185,6 +202,8 @@ def retrier[F: Callable[..., Any]](_func: F | None = None, *, retries: int = API
                         backoff_delay = calculate_backoff(count + 1, retries)
                         logger.info(f"Applying DDosProtection backoff delay: {backoff_delay}")
                         time.sleep(backoff_delay)
+                    else:
+                        time.sleep(calculate_retry_delay(retries - count))
                     return wrapper(*args, **kwargs)
                 else:
                     logger.warning(msg + "Giving up.")

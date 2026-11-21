@@ -478,6 +478,12 @@ def create_mock_trades_usdt(fee, is_short: bool | None = False, use_db: bool = T
 
 
 @pytest.fixture(autouse=True)
+def no_retry_delay(monkeypatch) -> None:
+    """Retries after a TemporaryError wait briefly in production - not in tests."""
+    monkeypatch.setattr("freqtrade.exchange.common.TEMPORARY_ERROR_RETRY_DELAY", 0.0)
+
+
+@pytest.fixture(autouse=True)
 def patch_gc(mocker) -> None:
     mocker.patch("freqtrade.main.gc_set_threshold")
 
