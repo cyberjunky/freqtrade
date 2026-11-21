@@ -133,6 +133,7 @@ started.
 | A6 | ✅ | **Dry-run stoploss fee.** A triggered stoploss is charged the taker fee. It was charged maker. | Slightly lower dry-run profit on stopped-out trades, matching live. |
 | A7 | ✅ | **Liquidation before stoploss.** When the liquidation price sits between the entry and the stoploss (wide stop, high leverage), a candle that reaches both now exits as a liquidation at the liquidation price. It used to exit as a stoploss at a price the position could never have reached. | Backtests of over-leveraged setups show liquidations (and their worse price) where they previously showed ordinary stoploss exits. No change when the stop sits before the liquidation price. |
 | A8 | ✅ | **BloFin candle volume in base currency.** The adapter read the contracts column as volume. One BloFin BTC contract is 0.001 BTC, so BTC volume was 1000 times too high, and volumes were not comparable between pairs with different contract sizes. It now reads the base-currency column (checked against the live API: 12,654 contracts = 12.654 BTC). | Anything using candle `volume` on BloFin changes: volume indicators, volume filters in strategies, and `VolumePairList` in lookback mode. **BloFin candle data downloaded before this fix has the old values; re-download it (`download-data --erase`) before comparing backtests.** |
+| A9 | ✅ | **Same-candle trailing exit with `custom_stoploss`.** When a stop moved by `custom_stoploss` triggers in the entry candle, the backtest exited at "a tick past open" (open × (1 − stop %)), while the same stop from the built-in trailing settings exits near the offset. `custom_stoploss` gets the candle's best price, so a stop it moved beyond the entry is a level price actually traded through; it now exits at that stop (bounded by the candle). Stops that are not beyond the entry keep the old worst case. | Strategies with a `custom_stoploss` trailing stop show those entry-candle exits at the stop instead of just below the entry. In a port of ArcaneLiM2 (0.2% trail above +2.5%) this hit 58 of 472 trades, which exited at about −0.3% where the original's built-in trailing exits them at about +2.2%. No change for the built-in trailing settings or a plain stoploss. |
 | A4 | Not changed | A resting limit order that the next candle gaps through never fills in backtest, while live it would fill at the open. Left as is: the current behaviour is the conservative one (it misses favourable fills), and filling at a different price than the order's would touch stake and cost bookkeeping. | — |
 | A5 | Not changed | Backtest applies the higher of maker and taker fee to every order. Left as is: whether a limit order at the market price ends up maker or taker live is not knowable from candles, so the worst case is the honest assumption. | — |
 
@@ -186,7 +187,8 @@ A local virtualenv (`.venv`, Python 3.14) runs the test suite and `ruff`. Run th
   (`test_retrier_delays_temporary_errors`), bot-loop errors
   (`test_worker_process_running_unexpected_error`).
   Also: live candle frame (`test__live_candle_counts`, `test_refresh_latest_ohlcv_live_frame`),
-  BloFin candle volume (`test_blofin_candle_volume_is_base_currency`).
+  BloFin candle volume (`test_blofin_candle_volume_is_base_currency`), same-candle custom
+  stoploss exit (`test_backtest_results` cases 36-38).
 
 Not verified from this branch: a real dry-run or live session. The only live-API check made was
 reading two public BloFin candles to confirm which column holds base-currency volume.
