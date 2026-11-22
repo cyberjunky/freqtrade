@@ -12,7 +12,7 @@ import psutil
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 from numpy import inf, isnan, mean, nan
-from pandas import DataFrame, NaT, read_sql
+from pandas import DataFrame, NaT, concat, read_sql
 from sqlalchemy import func, select
 
 from freqtrade import __version__
@@ -39,7 +39,12 @@ from freqtrade.enums import (
     TradingMode,
 )
 from freqtrade.exceptions import ExchangeError, PricingError
-from freqtrade.exchange import Exchange, timeframe_to_minutes, timeframe_to_msecs
+from freqtrade.exchange import (
+    Exchange,
+    timeframe_to_minutes,
+    timeframe_to_msecs,
+    timeframe_to_prev_date,
+)
 from freqtrade.exchange.exchange_utils import price_to_precision
 from freqtrade.ft_types import AnnotationType
 from freqtrade.loggers import bufferHandler
@@ -63,6 +68,53 @@ from freqtrade.wallets import PositionWallet, Wallet
 
 
 logger = logging.getLogger(__name__)
+
+
+SIGNAL_COLUMNS = ("enter_long", "exit_long", "enter_short", "exit_short")
+
+
+def resample_analyzed_dataframe(
+    dataframe: DataFrame, timeframe: str, ohlcv: DataFrame | None = None
+) -> DataFrame:
+    """
+    Group an analyzed dataframe into candles of a bigger timeframe, for charting.
+
+    Per bigger candle: open first, high max, low min, close last, volume summed, a signal is set
+    when it was set on any of its base candles, and every other column takes its last value
+    (pandas skips missing ones), which for merged informative columns (``rsi_4h``) is the value
+    of that bigger candle.
+    When ``ohlcv`` (the exchange candles of ``timeframe``) is given, its candles are used instead
+    of the grouped prices, including older candles without indicator values; the candle that is
+    still open comes from the grouped base candles.
+    """
+    if dataframe.empty:
+        return dataframe.copy()
+    price_agg = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    agg = {}
+    for col in dataframe.columns:
+        if col == "date":
+            continue
+        if col in price_agg:
+            agg[col] = price_agg[col]
+        elif col in SIGNAL_COLUMNS:
+            agg[col] = "max"
+        else:
+            agg[col] = "last"
+    buckets = dataframe["date"].map(lambda d: timeframe_to_prev_date(timeframe, d))
+    grouped = dataframe.groupby(buckets.rename("bucket"), sort=True).agg(agg)
+    grouped = grouped.rename_axis("date").reset_index()
+    grouped["date"] = grouped["date"].astype(dataframe["date"].dtype)
+
+    if ohlcv is None or ohlcv.empty:
+        return grouped
+    cols = [c for c in price_agg if c in ohlcv.columns and c in grouped.columns]
+    base = ohlcv[["date", *cols]].copy()
+    base["date"] = base["date"].astype(dataframe["date"].dtype)
+    merged = base.merge(grouped.drop(columns=cols), on="date", how="left")
+    newer = grouped[grouped["date"] > base["date"].max()]
+    if newer.empty:
+        return merged
+    return concat([merged, newer], ignore_index=True)
 
 
 class RPCException(Exception):
@@ -1540,6 +1592,15 @@ class RPC:
                 # replace NaT with `None`
                 dataframe[date_column] = dataframe[date_column].astype(object).replace({NaT: None})
 
+            # Booleans (also object columns holding only True/False/None) as 1/0 so they plot.
+            for col in dataframe.columns:
+                if dataframe[col].dtype == bool or (
+                    dataframe[col].dtype == object
+                    and dataframe[col].notna().any()
+                    and dataframe[col].dropna().map(type).eq(bool).all()
+                ):
+                    dataframe[col] = dataframe[col].map({True: 1, False: 0})
+
             dataframe = dataframe.replace({inf: None, -inf: None, nan: None})
 
         res = {
@@ -1604,8 +1665,26 @@ class RPC:
         :param timeframe: The timeframe of data to get
         :param limit: The amount of candles in the dataframe
         """
-        _data, last_analyzed = self._freqtrade.dataprovider.get_analyzed_dataframe(pair, timeframe)
-        _data = _data.copy()
+        dp = self._freqtrade.dataprovider
+        strategy_tf = self._freqtrade.config["timeframe"]
+        if timeframe == strategy_tf:
+            _data, last_analyzed = dp.get_analyzed_dataframe(pair, timeframe)
+            _data = _data.copy()
+        else:
+            # Only the strategy timeframe is analyzed. Group it into the requested (bigger)
+            # timeframe, so a chart can show e.g. the 4h view of a strategy that trades 4h
+            # signals from a 5m base.
+            if timeframe_to_minutes(timeframe) <= timeframe_to_minutes(strategy_tf) or (
+                timeframe_to_minutes(timeframe) % timeframe_to_minutes(strategy_tf)
+            ):
+                raise RPCException(
+                    f"Timeframe {timeframe} must be a multiple of the strategy timeframe "
+                    f"{strategy_tf}."
+                )
+            base, last_analyzed = dp.get_analyzed_dataframe(pair, strategy_tf)
+            _data = resample_analyzed_dataframe(
+                base, timeframe, dp.get_pair_dataframe(pair, timeframe)
+            )
 
         if limit:
             _data = _data.iloc[-limit:]

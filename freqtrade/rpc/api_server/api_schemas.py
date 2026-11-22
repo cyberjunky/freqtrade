@@ -5,6 +5,7 @@ from pydantic import (
     AfterValidator,
     AwareDatetime,
     BaseModel,
+    ConfigDict,
     Field,
     RootModel,
     SerializeAsAny,
@@ -492,6 +493,9 @@ class DeleteTrade(BaseModel):
 
 
 class PlotConfig_(BaseModel):
+    # Extra keys (e.g. "pair_timeframes": {pair: timeframe}) are passed on to the UI.
+    model_config = ConfigDict(extra="allow")
+
     main_plot: dict[str, Any]
     subplots: dict[str, Any]
 
