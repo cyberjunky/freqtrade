@@ -353,9 +353,7 @@ class Blofin(Exchange):
         try:
             # Pass orderId on the closed query too — without it the order can
             # scroll past the limit=100 window during busy periods.
-            closed_orders = self._api.fetch_closed_orders(
-                pair, limit=100, params=filter_params
-            )
+            closed_orders = self._api.fetch_closed_orders(pair, limit=100, params=filter_params)
             if found := self._search_order_in_list(closed_orders, order_id, "fetch_order_closed"):
                 return found
         except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
@@ -705,7 +703,7 @@ class Blofin(Exchange):
             one_call = candle_limit * timeframe_to_msecs(timeframe)
             request["after"] = since_ms + one_call
 
-        response = await api.request(path, "public", "GET", request)
+        response = await api.request(path, ["public"], "GET", request)
         rows = api.safe_list(response, "data", []) or []
         has_volume = candle_type not in (CandleType.MARK, CandleType.INDEX)
         candles: list = []
@@ -772,7 +770,9 @@ class Blofin(Exchange):
         while begin < end:
             page_end = min(begin + self._FUNDING_WINDOW_MS, end)
             params = {"begin": str(begin), "end": str(page_end), "instId": inst_id, "limit": "1000"}
-            response = self._api.request("account/funding-fees", api="private", method="GET", params=params)
+            response = self._api.request(
+                "account/funding-fees", api=["private"], method="GET", params=params
+            )
             self._log_exchange_response("funding_fees", response, add_info=params)
             for row in response.get("data") or []:
                 if row.get("instId") == inst_id:
