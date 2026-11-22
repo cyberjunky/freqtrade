@@ -16,8 +16,10 @@ declare global {
   const ROUND_UP: typeof import('./utils/roundTimeframe').ROUND_UP
   const STALE_AFTER_MS: typeof import('./composables/botInfo').STALE_AFTER_MS
   const THEME_MODES: typeof import('./composables/theme').THEME_MODES
+  const TOOLTIP_BASE_RICH: typeof import('./utils/charts/candleTooltip').TOOLTIP_BASE_RICH
   const TradeLayout: typeof import('./stores/layout').TradeLayout
   const acceptHMRUpdate: typeof import('pinia').acceptHMRUpdate
+  const appendCurrentPriceLine: typeof import('./utils/charts/tradeChartData').appendCurrentPriceLine
   const applyThemeClasses: typeof import('./composables/theme').applyThemeClasses
   const asyncComputed: typeof import('@vueuse/core').asyncComputed
   const autoResetRef: typeof import('@vueuse/core').autoResetRef
@@ -60,11 +62,13 @@ declare global {
   const eagerComputed: typeof import('@vueuse/core').eagerComputed
   const echartsGridDefault: typeof import('./utils/charts/chartZoom').echartsGridDefault
   const effectScope: typeof import('vue').effectScope
+  const escapeHtml: typeof import('./utils/charts/candleTooltip').escapeHtml
   const evaluateFeatures: typeof import('./utils/features').evaluateFeatures
   const exportForTesting: typeof import('./utils/formatters/timeformat').exportForTesting
   const extendRef: typeof import('@vueuse/core').extendRef
   const findGridLayout: typeof import('./stores/layout').findGridLayout
   const formatAge: typeof import('./utils/formatters/numberformat').formatAge
+  const formatCandleTooltip: typeof import('./utils/charts/candleTooltip').formatCandleTooltip
   const formatDecimal: typeof import('./utils/formatters/numberformat').formatDecimal
   const formatNumber: typeof import('./utils/formatters/numberformat').formatNumber
   const formatObjectForTable: typeof import('./utils/objectToTableItems').formatObjectForTable
@@ -73,6 +77,7 @@ declare global {
   const formatPriceCurrency: typeof import('./utils/formatters/numberformat').formatPriceCurrency
   const formatSigned: typeof import('./utils/formatters/numberformat').formatSigned
   const formatSignedPercent: typeof import('./utils/formatters/numberformat').formatSignedPercent
+  const formatTooltipValue: typeof import('./utils/charts/candleTooltip').formatTooltipValue
   const ftEchartsTransforms: typeof import('./utils/charts/ftEchartsTransforms').ftEchartsTransforms
   const generateAreaCandleSeries: typeof import('./utils/charts/candleChartSeries').generateAreaCandleSeries
   const generateBacktestMetricRows: typeof import('./utils/backtestMetrics').generateBacktestMetricRows
@@ -82,13 +87,13 @@ declare global {
   const generateMarkAreaSeries: typeof import('./utils/charts/tradeChartData').generateMarkAreaSeries
   const generateTradeSeries: typeof import('./utils/charts/tradeChartData').generateTradeSeries
   const getActivePinia: typeof import('pinia').getActivePinia
-  const getAvailableBotList: typeof import('./composables/loginInfo')['getAvailableBotList']
-  const getAvailableBots: typeof import('./composables/loginInfo')['getAvailableBots']
+  const getAvailableBotList: (typeof import('./composables/loginInfo'))['getAvailableBotList']
+  const getAvailableBots: (typeof import('./composables/loginInfo'))['getAvailableBots']
   const getCurrentInstance: typeof import('vue').getCurrentInstance
   const getCurrentScope: typeof import('vue').getCurrentScope
   const getCurrentWatcher: typeof import('vue').getCurrentWatcher
   const getDiffColumnsFromPlotConfig: typeof import('./utils/charts/areaPlotDataset').getDiffColumnsFromPlotConfig
-  const getTheme: typeof import('./utils/themes')['getTheme']
+  const getTheme: (typeof import('./utils/themes'))['getTheme']
   const h: typeof import('vue').h
   const hasFeature: typeof import('./utils/features').hasFeature
   const heikinAshiDataset: typeof import('./utils/charts/heikinAshiDataset').heikinAshiDataset
@@ -115,7 +120,7 @@ declare global {
   const mapWritableState: typeof import('pinia').mapWritableState
   const markRaw: typeof import('vue').markRaw
   const nextTick: typeof import('vue').nextTick
-  const numberformat: typeof import('./utils/formatters/numberformat')['default']
+  const numberformat: (typeof import('./utils/formatters/numberformat'))['default']
   const onActivated: typeof import('vue').onActivated
   const onBeforeMount: typeof import('vue').onBeforeMount
   const onBeforeRouteLeave: typeof import('vue-router').onBeforeRouteLeave
@@ -162,8 +167,9 @@ declare global {
   const refreshThemeTokens: typeof import('./utils/themeTokens').refreshThemeTokens
   const resolveComponent: typeof import('vue').resolveComponent
   const resolveRef: typeof import('@vueuse/core').resolveRef
-  const resolveUnref: typeof import('@vueuse/core')['resolveUnref']
+  const resolveUnref: (typeof import('@vueuse/core'))['resolveUnref']
   const roundTimeframe: typeof import('./utils/roundTimeframe').default
+  const seriesColor: typeof import('./utils/charts/candleTooltip').seriesColor
   const setActivePinia: typeof import('pinia').setActivePinia
   const setMapStoreSuffix: typeof import('pinia').setMapStoreSuffix
   const setTimezone: typeof import('./utils/formatters/timeformat').setTimezone
@@ -194,6 +200,7 @@ declare global {
   const toRef: typeof import('vue').toRef
   const toRefs: typeof import('vue').toRefs
   const toValue: typeof import('vue').toValue
+  const tooltipRichStyles: typeof import('./utils/charts/candleTooltip').tooltipRichStyles
   const triggerRef: typeof import('vue').triggerRef
   const tryOnBeforeMount: typeof import('@vueuse/core').tryOnBeforeMount
   const tryOnBeforeUnmount: typeof import('@vueuse/core').tryOnBeforeUnmount
@@ -380,7 +387,7 @@ declare global {
   const useTransition: typeof import('@vueuse/core').useTransition
   const useUrlSearchParams: typeof import('@vueuse/core').useUrlSearchParams
   const useUserMedia: typeof import('@vueuse/core').useUserMedia
-  const useUserService: typeof import('./composables/loginInfo')['useUserService']
+  const useUserService: (typeof import('./composables/loginInfo'))['useUserService']
   const useVModel: typeof import('@vueuse/core').useVModel
   const useVModels: typeof import('@vueuse/core').useVModels
   const useVibrate: typeof import('@vueuse/core').useVibrate
@@ -393,7 +400,7 @@ declare global {
   const useWindowFocus: typeof import('@vueuse/core').useWindowFocus
   const useWindowScroll: typeof import('@vueuse/core').useWindowScroll
   const useWindowSize: typeof import('@vueuse/core').useWindowSize
-  const usedColumns: typeof import('./utils/charts/usedColumns')['default']
+  const usedColumns: (typeof import('./utils/charts/usedColumns'))['default']
   const watch: typeof import('vue').watch
   const watchArray: typeof import('@vueuse/core').watchArray
   const watchAtMost: typeof import('@vueuse/core').watchAtMost
@@ -438,6 +445,9 @@ declare global {
   export type { SupportedSeriesTypes } from './utils/charts/candleChartSeries'
   import('./utils/charts/candleChartSeries')
   // @ts-ignore
+  export type { TooltipSeries, CandleTooltipContext } from './utils/charts/candleTooltip'
+  import('./utils/charts/candleTooltip')
+  // @ts-ignore
   export type { ThemeKind, ThemeTokens } from './utils/themeTokens'
   import('./utils/themeTokens')
 }
@@ -457,6 +467,7 @@ declare module 'vue' {
     readonly STALE_AFTER_MS: UnwrapRef<typeof import('./composables/botInfo')['STALE_AFTER_MS']>
     readonly THEME_MODES: UnwrapRef<typeof import('./composables/theme')['THEME_MODES']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
+    readonly appendCurrentPriceLine: UnwrapRef<typeof import('./utils/charts/tradeChartData')['appendCurrentPriceLine']>
     readonly applyThemeClasses: UnwrapRef<typeof import('./composables/theme')['applyThemeClasses']>
     readonly asyncComputed: UnwrapRef<typeof import('@vueuse/core')['asyncComputed']>
     readonly autoResetRef: UnwrapRef<typeof import('@vueuse/core')['autoResetRef']>
@@ -498,10 +509,12 @@ declare module 'vue' {
     readonly eagerComputed: UnwrapRef<typeof import('@vueuse/core')['eagerComputed']>
     readonly echartsGridDefault: UnwrapRef<typeof import('./utils/charts/chartZoom')['echartsGridDefault']>
     readonly effectScope: UnwrapRef<typeof import('vue')['effectScope']>
+    readonly escapeHtml: UnwrapRef<typeof import('./utils/charts/candleTooltip')['escapeHtml']>
     readonly evaluateFeatures: UnwrapRef<typeof import('./utils/features')['evaluateFeatures']>
     readonly exportForTesting: UnwrapRef<typeof import('./utils/formatters/timeformat')['exportForTesting']>
     readonly extendRef: UnwrapRef<typeof import('@vueuse/core')['extendRef']>
     readonly formatAge: UnwrapRef<typeof import('./utils/formatters/numberformat')['formatAge']>
+    readonly formatCandleTooltip: UnwrapRef<typeof import('./utils/charts/candleTooltip')['formatCandleTooltip']>
     readonly formatDecimal: UnwrapRef<typeof import('./utils/formatters/numberformat')['formatDecimal']>
     readonly formatNumber: UnwrapRef<typeof import('./utils/formatters/numberformat')['formatNumber']>
     readonly formatObjectForTable: UnwrapRef<typeof import('./utils/objectToTableItems')['formatObjectForTable']>
@@ -510,6 +523,7 @@ declare module 'vue' {
     readonly formatPriceCurrency: UnwrapRef<typeof import('./utils/formatters/numberformat')['formatPriceCurrency']>
     readonly formatSigned: UnwrapRef<typeof import('./utils/formatters/numberformat')['formatSigned']>
     readonly formatSignedPercent: UnwrapRef<typeof import('./utils/formatters/numberformat')['formatSignedPercent']>
+    readonly formatTooltipValue: UnwrapRef<typeof import('./utils/charts/candleTooltip')['formatTooltipValue']>
     readonly ftEchartsTransforms: UnwrapRef<typeof import('./utils/charts/ftEchartsTransforms')['ftEchartsTransforms']>
     readonly generateAreaCandleSeries: UnwrapRef<typeof import('./utils/charts/candleChartSeries')['generateAreaCandleSeries']>
     readonly generateBacktestMetricRows: UnwrapRef<typeof import('./utils/backtestMetrics')['generateBacktestMetricRows']>
@@ -595,6 +609,7 @@ declare module 'vue' {
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
     readonly resolveRef: UnwrapRef<typeof import('@vueuse/core')['resolveRef']>
     readonly roundTimeframe: UnwrapRef<typeof import('./utils/roundTimeframe')['default']>
+    readonly seriesColor: UnwrapRef<typeof import('./utils/charts/candleTooltip')['seriesColor']>
     readonly setActivePinia: UnwrapRef<typeof import('pinia')['setActivePinia']>
     readonly setMapStoreSuffix: UnwrapRef<typeof import('pinia')['setMapStoreSuffix']>
     readonly setTimezone: UnwrapRef<typeof import('./utils/formatters/timeformat')['setTimezone']>

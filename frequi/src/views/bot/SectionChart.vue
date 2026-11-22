@@ -7,11 +7,33 @@ const chartStore = useChartConfigStore();
 
 const bot = computed(() => botStore.activeBot);
 
+/** Trade mode: the timeframe the strategy names for the shown pair (plot_config.pair_timeframes). */
+const pairTimeframe = computed<string>(() => {
+  const pair = bot.value.plotMultiPairs[0] || bot.value.selectedPair;
+  return (pair && bot.value.strategyPlotConfig?.pair_timeframes?.[pair]) || '';
+});
+
 const finalTimeframe = computed<string>(() => {
   return bot.value.isWebserverMode
     ? chartStore.selectedTimeframe || bot.value.strategy?.timeframe || ''
-    : bot.value.timeframe;
+    : bot.value.chartTimeframe || pairTimeframe.value || bot.value.timeframe;
 });
+
+watch(
+  finalTimeframe,
+  (tf) => {
+    if (!bot.value.isWebserverMode) bot.value.displayTimeframe = tf;
+  },
+  { immediate: true },
+);
+
+// Another pair opens on its own default timeframe again.
+watch(
+  () => bot.value.plotMultiPairs[0],
+  (pair, oldPair) => {
+    if (oldPair !== undefined && pair !== oldPair) bot.value.chartTimeframe = '';
+  },
+);
 
 const exchange = ref<{
   customExchange: boolean;
@@ -49,8 +71,11 @@ onMounted(() => {
   if (bot.value.isWebserverMode) {
     // Get available pairs for all timeframes
     bot.value.getAvailablePairs({});
-  } else if (!bot.value.whitelist || bot.value.whitelist.length === 0) {
-    bot.value.getWhitelist();
+  } else {
+    bot.value.loadStrategyPlotConfig();
+    if (!bot.value.whitelist || bot.value.whitelist.length === 0) {
+      bot.value.getWhitelist();
+    }
   }
 });
 

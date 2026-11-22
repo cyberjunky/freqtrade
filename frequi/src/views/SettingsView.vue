@@ -146,6 +146,14 @@ const labelSideItems: SegmentedItem<'left' | 'right'>[] = [
             <template #hint>Use Heikin Ashi candles in your charts</template>
           </BaseCheckbox>
 
+          <BaseCheckbox v-model="settingsStore.showCurrentPriceLine">
+            Show current price line
+            <template #hint>
+              Dashed line at the open trade's current rate on the candle chart. No line when the
+              pair has no open trade.
+            </template>
+          </BaseCheckbox>
+
           <BaseCheckbox v-model="settingsStore.useReducedPairCalls">
             Only request necessary columns
             <template #hint

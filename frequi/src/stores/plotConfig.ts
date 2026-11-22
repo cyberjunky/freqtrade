@@ -3,6 +3,12 @@ import { EMPTY_PLOTCONFIG } from '@/types';
 
 const FT_PLOT_CONFIG_KEY = 'ftPlotConfig';
 
+function isEmptyPlotConfig(pc: PlotConfig): boolean {
+  return (
+    Object.keys(pc.main_plot || {}).length === 0 && Object.keys(pc.subplots || {}).length === 0
+  );
+}
+
 function migratePlotConfigs() {
   // Legacy config names
   const PLOT_CONFIG = 'ft_custom_plot_config';
@@ -33,10 +39,15 @@ export const usePlotConfigStore = defineStore('plotConfig', {
   },
   getters: {
     availablePlotConfigNames: (state) => Object.keys(state.customPlotConfigs),
-    plotConfig: (state) =>
-      (state.isEditing
-        ? state.editablePlotConfig
-        : state.customPlotConfigs[state.plotConfigName]) || deepClone(EMPTY_PLOTCONFIG),
+    plotConfig: (state): PlotConfig => {
+      if (state.isEditing) return state.editablePlotConfig;
+      const own = state.customPlotConfigs[state.plotConfigName];
+      if (own && !isEmptyPlotConfig(own)) return own;
+      // Nothing set up yet: show what the strategy ships.
+      const fromStrategy = useBotStore().activeBotorUndefined?.strategyPlotConfig;
+      if (fromStrategy && !isEmptyPlotConfig(fromStrategy)) return fromStrategy;
+      return own || deepClone(EMPTY_PLOTCONFIG);
+    },
     usedColumns() {
       return plotConfigColumns(this.plotConfig as unknown as PlotConfig);
     },

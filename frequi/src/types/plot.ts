@@ -20,6 +20,8 @@ export interface PlotConfig {
     showTags?: boolean;
     markAreaZIndex?: number;
   };
+  /** From the strategy: the timeframe a pair's chart opens on, e.g. {"ATOM/USDT:USDT": "4h"}. */
+  pair_timeframes?: Record<string, string>;
 }
 
 export interface PlotConfigStorage {

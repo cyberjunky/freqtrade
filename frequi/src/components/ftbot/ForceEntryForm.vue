@@ -25,6 +25,49 @@ const ordertype = ref('');
 const orderSide = ref<OrderSides>(OrderSides.long);
 const enterTag = ref('force_entry');
 
+/** Stake currency the bot can still use: its own share of the wallet where known, else free. */
+const availableStake = computed<number | undefined>(() => {
+  const stakeBalance = botStore.activeBot.balance.currencies?.find(
+    (curr) => curr.currency === botStore.activeBot.stakeCurrency,
+  );
+  if (!stakeBalance) {
+    return undefined;
+  }
+  return stakeBalance.bot_owned ?? stakeBalance.free;
+});
+
+function roundToStakePrecision(value: number): number {
+  return Number(value.toFixed(botStore.activeBot.stakeCurrencyDecimals));
+}
+
+/** Slider proxy: an empty stake amount (= the bot's configured amount) is 0 on the slider. */
+const stakeAmountSlider = computed<number>({
+  get: () => stakeAmount.value ?? 0,
+  set: (value) => {
+    stakeAmount.value = value === 0 ? undefined : value;
+  },
+});
+
+const stakeStep = computed<number>(() => {
+  const precision = 10 ** -botStore.activeBot.stakeCurrencyDecimals;
+  return Math.max(roundToStakePrecision((availableStake.value ?? 0) / 100), precision);
+});
+
+const stakeRatios = [0.25, 0.5, 0.75, 1];
+
+function applyStakeRatio(ratio: number) {
+  if (!availableStake.value) {
+    return;
+  }
+  stakeAmount.value = roundToStakePrecision(availableStake.value * ratio);
+}
+
+function onShow() {
+  resetForm();
+  // Make sure the available balance is current when the dialog opens.
+  botStore.activeBot.getBalance();
+}
+
 const orderTypeOptions = [
   { value: 'market', text: 'Market' },
   { value: 'limit', text: 'Limit' },
@@ -95,7 +138,7 @@ const handleEntry = () => {
     v-model:visible="model"
     :header="positionIncrease ? `Increasing position for ${pair}` : 'Force entering a trade'"
     modal
-    @show="resetForm"
+    @show="onShow"
     @hide="resetForm"
   >
     <form ref="form" class="space-y-4 md:min-w-[32rem]" @submit.prevent="handleSubmit">
@@ -143,15 +186,57 @@ const handleEntry = () => {
         <label for="stake-input" class="block font-medium mb-1"
           >* Stake-amount in {{ botStore.activeBot.stakeCurrency }} [optional]</label
         >
-        <InputNumber
-          id="stake-input"
-          v-model="stakeAmount"
-          show-buttons
-          :min="0"
-          :step="botStore.activeBot.stakeCurrency === 'USDT' ? 10 : 1"
-          :max-fraction-digits="5"
-          fluid
-        />
+        <div class="space-y-2">
+          <InputNumber
+            id="stake-input"
+            v-model="stakeAmount"
+            show-buttons
+            :min="0"
+            :step="['USDC', 'USDT'].includes(botStore.activeBot.stakeCurrency) ? 10 : 1"
+            :max-fraction-digits="5"
+            fluid
+          />
+          <template v-if="availableStake">
+            <div class="text-sm opacity-75">
+              Available:
+              {{
+                formatPriceCurrency(
+                  availableStake,
+                  botStore.activeBot.stakeCurrency,
+                  botStore.activeBot.stakeCurrencyDecimals,
+                )
+              }}
+            </div>
+            <Slider
+              v-model="stakeAmountSlider"
+              :min="0"
+              :max="availableStake"
+              :step="stakeStep"
+              class="w-full"
+            />
+            <div class="flex gap-1">
+              <Button
+                v-for="ratio in stakeRatios"
+                :key="ratio"
+                size="small"
+                severity="secondary"
+                class="grow"
+                @click="applyStakeRatio(ratio)"
+              >
+                {{ formatPercent(ratio, 0) }}
+              </Button>
+              <Button
+                size="small"
+                severity="secondary"
+                title="Use the bot's configured stake amount"
+                :disabled="stakeAmount === undefined"
+                @click="stakeAmount = undefined"
+              >
+                Default
+              </Button>
+            </div>
+          </template>
+        </div>
       </div>
 
       <div v-if="botStore.activeBot.botFeatures.forceEnterShort && botStore.activeBot.shortAllowed">

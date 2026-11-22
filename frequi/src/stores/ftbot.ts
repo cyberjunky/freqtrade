@@ -71,6 +71,10 @@ export function createBotSubStore(botId: string, botName: string) {
   const { api } = useApi(loginInfo, botId);
 
   const { showAlert } = useAlertForBot(botName);
+  // The live WebSocket (one per bot). Its watchers live in their own scope so it can be closed
+  // and disposed of completely, e.g. on logout.
+  let wsScope: ReturnType<typeof effectScope> | null = null;
+  let wsClose: (() => void) | null = null;
 
   const useBotStore = defineStore(botId, {
     state: () => {
@@ -108,6 +112,12 @@ export function createBotSubStore(botId: string, botName: string) {
         detailTradeId: null as number | null,
         selectedPair: '',
         plotMultiPairs: [] as string[],
+        /** Plot config the strategy ships (/plot_config); used when no own config is set up. */
+        strategyPlotConfig: null as PlotConfig | null,
+        /** Timeframe picked in the chart (trade mode); '' = the pair's default. */
+        chartTimeframe: '',
+        /** Timeframe the chart currently shows (trade mode), for new-candle reloads. */
+        displayTimeframe: '',
         // TODO: type me
         candleData: {},
         candleDataStatus: LoadingStatus.not_loaded,
@@ -204,6 +214,7 @@ export function createBotSubStore(botId: string, botName: string) {
         }
       },
       logout() {
+        this.stopWebSocket();
         loginInfo.logout();
       },
       getLoginInfo() {
@@ -259,7 +270,9 @@ export function createBotSubStore(botId: string, botName: string) {
         return Promise.resolve();
       },
       async refreshFrequent() {
-        // Refresh data that's needed in near realtime
+        // Refresh data that's needed in near realtime. The bot state too: it can change
+        // without any trade activity (stopped after errors, started from Telegram).
+        await this.getState();
         await this.getOpenTrades();
         await this.getLocks();
       },
@@ -270,7 +283,6 @@ export function createBotSubStore(botId: string, botName: string) {
       },
       async getTrades() {
         try {
-          let totalTrades = 0;
           const pageLength = 500;
           const fetchTrades = async (limit: number, offset: number) => {
             return api.get<TradeResponse>('/trades', {
@@ -281,17 +293,18 @@ export function createBotSubStore(botId: string, botName: string) {
           const result: TradeResponse = res.data;
           let { trades } = result;
           if (Array.isArray(trades)) {
-            if (trades.length !== result.total_trades) {
-              // Pagination necessary
-              // Don't use Promise.all - this would fire all requests at once, which can
-              // cause problems for big sqlite databases
-              do {
-                const res = await fetchTrades(pageLength, trades.length);
-
-                const result: TradeResponse = res.data;
-                trades = trades.concat(result.trades);
-                totalTrades = res.data.total_trades;
-              } while (trades.length !== totalTrades);
+            // Pagination necessary
+            // Don't use Promise.all - this would fire all requests at once, which can
+            // cause problems for big sqlite databases
+            let totalTrades = result.total_trades;
+            while (trades.length < totalTrades) {
+              const next = await fetchTrades(pageLength, trades.length);
+              if (!next.data.trades.length) {
+                // The trade count changed while paging: stop instead of looping forever.
+                break;
+              }
+              trades = trades.concat(next.data.trades);
+              totalTrades = next.data.total_trades;
             }
             const tradesCount = trades.length;
             // Add botId to all trades
@@ -490,6 +503,14 @@ export function createBotSubStore(botId: string, botName: string) {
         } catch (data) {
           console.error(data);
           return Promise.reject(data);
+        }
+      },
+      async loadStrategyPlotConfig() {
+        if (this.isWebserverMode) return;
+        try {
+          this.strategyPlotConfig = (await this.getStrategyPlotConfig()) ?? null;
+        } catch {
+          this.strategyPlotConfig = null;
         }
       },
       async getStrategyList() {
@@ -1193,6 +1214,10 @@ export function createBotSubStore(botId: string, botName: string) {
           case FtWsMessageTypes.whitelist:
             this.whitelist = msg.data;
             break;
+          case FtWsMessageTypes.status:
+            // State changed (e.g. stopped after errors, started, paused): show it right away.
+            this.getState();
+            break;
           case FtWsMessageTypes.entryFill:
           case FtWsMessageTypes.exitFill:
           case FtWsMessageTypes.exitCancel:
@@ -1203,9 +1228,14 @@ export function createBotSubStore(botId: string, botName: string) {
             const [pair, timeframe] = msg.data;
             // TODO: check for active bot ...
             if (this.plotMultiPairs.length > 0 && this.plotMultiPairs.includes(pair)) {
-              // Reload pair candles
+              // Reload pair candles, in the timeframe the chart shows (may be bigger than the
+              // strategy timeframe the new candle came in on).
               const plotStore = usePlotConfigStore();
-              this.getPairCandles({ pair, timeframe, columns: plotStore.usedColumns });
+              this.getPairCandles({
+                pair,
+                timeframe: this.displayTimeframe || timeframe,
+                columns: plotStore.usedColumns,
+              });
             }
             break;
           }
@@ -1216,66 +1246,86 @@ export function createBotSubStore(botId: string, botName: string) {
             break;
         }
       },
+      stopWebSocket() {
+        wsClose?.();
+        wsScope?.stop();
+        wsClose = null;
+        wsScope = null;
+        this.websocketStarted = false;
+      },
       startWebSocket() {
         if (
-          this.websocketStarted === true ||
+          // A socket exists already (connected or reconnecting by itself): don't open a second.
+          wsScope !== null ||
           this.botStatusAvailable === false ||
           !this.botFeatures.websocketConnection ||
           this.isWebserverMode === true
         ) {
           return;
         }
-        const { send, close } = useWebSocket(
-          // 'ws://localhost:8080/api/v1/message/ws?token=testtoken',
-          `${loginInfo.baseWsUrl.value}/message/ws?token=${loginInfo.accessToken.value}`,
-          {
-            autoReconnect: {
-              delay: 10000,
-              // retries: 10
-            },
-            // heartbeat: {
-            //   message: JSON.stringify({ type: 'ping' }),
-            //   interval: 10000,
-            // },
-            onError: (ws, event) => {
-              console.log('onError', event, ws);
-              this.websocketStarted = false;
-              close();
-            },
-            onMessage: this._handleWebsocketMessage,
-            onConnected: () => {
-              console.log('subscribing');
-              if (this.isWebserverMode !== true) {
-                //
-                this.websocketStarted = true;
-                const subscriptions = [
-                  FtWsMessageTypes.whitelist,
-                  FtWsMessageTypes.entryFill,
-                  FtWsMessageTypes.exitFill,
-                  FtWsMessageTypes.entryCancel,
-                  FtWsMessageTypes.exitCancel,
-                  /*'new_candle' /*'analyzed_df'*/
-                ];
-                if (this.botFeatures.websocketNewCandle) {
-                  subscriptions.push(FtWsMessageTypes.newCandle);
-                }
+        wsScope = effectScope(true);
+        const ws = wsScope.run(() =>
+          useWebSocket(
+            // A getter, so every (re)connect uses the current token, not the one from the first
+            // connect (which expires). A token refresh also reconnects with the new token.
+            () =>
+              `${loginInfo.baseWsUrl.value}/message/ws?token=${loginInfo.accessToken.value ?? ''}`,
+            {
+              autoReconnect: {
+                delay: 10000,
+                // retries: 10
+              },
+              // heartbeat: {
+              //   message: JSON.stringify({ type: 'ping' }),
+              //   interval: 10000,
+              // },
+              onError: (socket, event) => {
+                // autoReconnect retries; closing here would stop that.
+                console.log('onError', event, socket);
+                this.websocketStarted = false;
+              },
+              onDisconnected: () => {
+                this.websocketStarted = false;
+              },
+              onMessage: this._handleWebsocketMessage,
+              onConnected: () => {
+                console.log('subscribing');
+                if (this.isWebserverMode !== true) {
+                  //
+                  this.websocketStarted = true;
+                  const subscriptions = [
+                    FtWsMessageTypes.whitelist,
+                    FtWsMessageTypes.entryFill,
+                    FtWsMessageTypes.exitFill,
+                    FtWsMessageTypes.entryCancel,
+                    FtWsMessageTypes.exitCancel,
+                    FtWsMessageTypes.status,
+                    /*'new_candle' /*'analyzed_df'*/
+                  ];
+                  if (this.botFeatures.websocketNewCandle) {
+                    subscriptions.push(FtWsMessageTypes.newCandle);
+                  }
 
-                send(
-                  JSON.stringify({
-                    type: 'subscribe',
-                    data: subscriptions,
-                  }),
-                );
-                send(
-                  JSON.stringify({
-                    type: FtWsMessageTypes.whitelist,
-                    data: '',
-                  }),
-                );
-              }
+                  send(
+                    JSON.stringify({
+                      type: 'subscribe',
+                      data: subscriptions,
+                    }),
+                  );
+                  send(
+                    JSON.stringify({
+                      type: FtWsMessageTypes.whitelist,
+                      data: '',
+                    }),
+                  );
+                }
+              },
             },
-          },
+          ),
         );
+        if (!ws) return;
+        const { send } = ws;
+        wsClose = ws.close;
       },
     },
   });

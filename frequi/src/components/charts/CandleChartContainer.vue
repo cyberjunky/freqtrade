@@ -50,6 +50,38 @@ function showConfigurator() {
 
 const isSinglePairView = computed(() => botStore.activeBot.plotMultiPairs.length === 1);
 
+// Trade mode: the bot only analyzes its own timeframe; bigger ones are grouped from it by the API.
+const TIMEFRAME_MINUTES: Record<string, number> = {
+  '1m': 1,
+  '3m': 3,
+  '5m': 5,
+  '15m': 15,
+  '30m': 30,
+  '1h': 60,
+  '2h': 120,
+  '4h': 240,
+  '6h': 360,
+  '8h': 480,
+  '12h': 720,
+  '1d': 1440,
+  '3d': 4320,
+  '1w': 10080,
+};
+const chartTimeframes = computed<string[]>(() => {
+  const base = TIMEFRAME_MINUTES[botStore.activeBot.timeframe];
+  if (!base) return props.timeframe ? [props.timeframe] : [];
+  return Object.keys(TIMEFRAME_MINUTES).filter((tf) => {
+    const m = TIMEFRAME_MINUTES[tf]!;
+    return m >= base && m % base === 0;
+  });
+});
+function selectTimeframe(tf: string) {
+  botStore.activeBot.chartTimeframe = tf;
+}
+
+const chartRoot = useTemplateRef<HTMLElement>('chartRoot');
+const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(chartRoot);
+
 watch(
   () => botStore.activeBot.selectedPair,
   () => {
@@ -140,10 +172,22 @@ const singlePairSelection = computed({
 </script>
 
 <template>
-  <div class="flex h-full">
+  <div ref="chartRoot" class="flex h-full ft-cc-root" :class="{ 'is-fullscreen': isFullscreen }">
     <div class="flex-fill w-full flex-col align-items-stretch flex h-full">
       <div class="ft-cc-bar">
-        <span class="ft-cc-strat ft-mono">{{ strategyName }} | {{ timeframe || '' }}</span>
+        <span class="ft-cc-strat ft-mono"
+          >{{ strategyName }}<template v-if="historicView"> | {{ timeframe || '' }}</template></span
+        >
+        <Select
+          v-if="!historicView"
+          :model-value="timeframe"
+          :options="chartTimeframes"
+          class="ft-cc-tf"
+          size="small"
+          append-to="self"
+          title="Chart timeframe. Opens on the timeframe the strategy trades this pair on."
+          @update:model-value="selectTimeframe"
+        />
         <MultiSelect
           v-if="settingsStore.multiPairSelection"
           v-model="botStore.activeBot.plotMultiPairs"
@@ -152,6 +196,7 @@ const singlePairSelection = computed({
           optionlabel=""
           placeholder="Select pairs to plot"
           size="small"
+          append-to="self"
           filter
         >
         </MultiSelect>
@@ -161,6 +206,7 @@ const singlePairSelection = computed({
           class="ft-cc-pair"
           :options="availablePairs"
           size="small"
+          append-to="self"
           :clearable="false"
           @input="refresh"
         >
@@ -182,13 +228,31 @@ const singlePairSelection = computed({
           <BaseCheckbox v-model="settingsStore.showMarkArea">
             <span class="text-nowrap">Show Chart Areas</span>
           </BaseCheckbox>
+          <BaseCheckbox
+            v-model="settingsStore.showCurrentPriceLine"
+            title="Dashed line at the open trade's current rate"
+          >
+            <span class="text-nowrap">Current price</span>
+          </BaseCheckbox>
           <BaseCheckbox v-model="settingsStore.useHeikinAshiCandles">
             <span class="text-nowrap">Heikin Ashi</span>
           </BaseCheckbox>
 
           <PlotConfigSelect></PlotConfigSelect>
 
-          <div>
+          <Button
+            size="small"
+            severity="secondary"
+            :title="isFullscreen ? 'Exit full screen (Esc)' : 'Full screen'"
+            @click="toggleFullscreen"
+          >
+            <template #icon>
+              <i-mdi-fullscreen-exit v-if="isFullscreen" />
+              <i-mdi-fullscreen v-else />
+            </template>
+          </Button>
+
+          <div v-show="!isFullscreen">
             <Button
               size="small"
               title="Plot configurator"
@@ -255,6 +319,14 @@ const singlePairSelection = computed({
 .ft-cc-pair {
   width: 220px;
   max-width: 100%;
+}
+.ft-cc-tf {
+  width: 86px;
+}
+.ft-cc-root.is-fullscreen {
+  background: var(--ft-panel);
+  padding: 10px 8px 6px;
+  height: 100vh;
 }
 .ft-cc-bar-right {
   display: flex;

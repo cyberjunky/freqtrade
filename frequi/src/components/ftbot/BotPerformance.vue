@@ -43,7 +43,7 @@ const performanceTable = computed<
   };
   return [
     initialCol[selectedOption.value],
-    { key: 'profit', label: 'Profit %' },
+    { key: 'profit_pct', label: 'Profit %' },
     {
       key: 'profit_abs',
       label: `Profit ${botStore.activeBot.botState?.stake_currency}`,
@@ -138,14 +138,14 @@ onMounted(() => {
       >
         <template #body="slotProps">
           <span
-            v-if="field.key === 'profit' || field.key === 'profit_abs'"
+            v-if="field.key === 'profit_pct' || field.key === 'profit_abs'"
             :class="profitClass(slotProps.data[field.key])"
             >{{ signOf(slotProps.data[field.key])
             }}{{
               field.formatter
                 ? field.formatter(slotProps.data[field.key])
                 : slotProps.data[field.key]
-            }}{{ field.key === 'profit' ? '%' : '' }}</span
+            }}{{ field.key === 'profit_pct' ? '%' : '' }}</span
           >
           <template v-else>{{
             field.formatter ? field.formatter(slotProps.data[field.key]) : slotProps.data[field.key]

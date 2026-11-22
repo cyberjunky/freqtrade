@@ -13,6 +13,9 @@ import type {
 const AUTH_LOGIN_INFO = 'ftAuthLoginInfo';
 const APIBASE = '/api/v1';
 
+// A refresh already in progress, per bot: concurrent 401s share one refresh request.
+const pendingRefresh: Record<string, Promise<string>> = {};
+
 // Global state for all login infos
 const allLoginInfos = useStorage<AuthStorageMulti>(AUTH_LOGIN_INFO, {});
 
@@ -135,34 +138,45 @@ export function useLoginInfo(botId: string) {
   }
 
   function refreshToken(): Promise<string> {
+    const pending = pendingRefresh[botId];
+    if (pending) {
+      return pending;
+    }
     console.log('Refreshing token...');
     const token = currentInfo.value.refreshToken;
-    return new Promise((resolve, reject) => {
-      axios
-        .post<Record<string, never>, AxiosResponse<AuthResponse>>(
-          `${currentInfo.value.apiUrl}${APIBASE}/token/refresh`,
-          {},
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        )
-        .then((response) => {
-          if (response.data.access_token) {
-            currentInfo.value.accessToken = response.data.access_token;
-            resolve(response.data.access_token);
-          }
-        })
-        .catch((err) => {
-          console.error(err);
-          if (err.response && err.response.status === 401) {
-            console.log('Refresh token did not refresh.');
-            setRefreshTokenExpired();
-          } else if (err.response && (err.response.status === 500 || err.response.status === 404)) {
-            console.log('Bot seems to be offline... - retrying later');
-          }
-          reject(err);
-        });
-    });
+    const request = axios
+      .post<Record<string, never>, AxiosResponse<AuthResponse>>(
+        `${currentInfo.value.apiUrl}${APIBASE}/token/refresh`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+          timeout: 20000,
+        },
+      )
+      .then((response) => {
+        const accessToken = response.data.access_token;
+        if (!accessToken) {
+          throw new Error('Token refresh returned no access token.');
+        }
+        currentInfo.value.accessToken = accessToken;
+        return accessToken;
+      })
+      .catch((err) => {
+        console.error(err);
+        if (err.response && err.response.status === 401) {
+          console.log('Refresh token did not refresh.');
+          setRefreshTokenExpired();
+        } else if (err.response && (err.response.status === 500 || err.response.status === 404)) {
+          console.log('Bot seems to be offline... - retrying later');
+        }
+        throw err;
+      })
+      .finally(() => {
+        delete pendingRefresh[botId];
+      });
+    pendingRefresh[botId] = request;
+    return request;
   }
 
   return {

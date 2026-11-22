@@ -1,4 +1,4 @@
-import type { AxiosHeaders } from 'axios';
+import type { AxiosHeaders, InternalAxiosRequestConfig } from 'axios';
 import axios from 'axios';
 
 type UserServiceType = ReturnType<typeof useLoginInfo>;
@@ -31,39 +31,23 @@ export function useApi(userService: UserServiceType, botId: string) {
     (response) => response,
     (err) => {
       // console.log(err);
-      if (err.response && err.response.status === 401) {
-        return userService
-          .refreshToken()
-          .catch((error) => {
-            console.log('No new token received');
-            console.log(error);
+      const config = err.config as
+        | (InternalAxiosRequestConfig & { _ftRetried?: boolean })
+        | undefined;
+      if (err.response && err.response.status === 401 && config && !config._ftRetried) {
+        // Access token expired: refresh it once, then repeat the request with the new token.
+        return userService.refreshToken().then(
+          () => api.request({ ...config, _ftRetried: true } as InternalAxiosRequestConfig),
+          (error) => {
+            console.log('No new token received', error);
             const botStore = useBotStore();
             if (botStore.botStores[botId]) {
               botStore.botStores[botId].setIsBotOnline(false);
               botStore.botStores[botId].isBotLoggedIn = false;
             }
-          })
-          .then((token) => {
-            // Retry original request with new token
-            const { config } = err;
-            config.headers.Authorization = `Bearer ${token}`;
-
-            return new Promise((resolve, reject) => {
-              axios
-                .request(config)
-                .then((response) => {
-                  resolve(response);
-                })
-                .catch((error) => {
-                  reject(error);
-                });
-            });
-          })
-          .catch((error) => {
-            console.log(error);
-          });
-
-        // maybe redirect to /login if needed !
+            return Promise.reject(err);
+          },
+        );
       }
       if ((err.response && err.response.status === 500) || err.message === 'Network Error') {
         console.log('Bot not running...');

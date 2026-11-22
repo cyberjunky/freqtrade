@@ -5,6 +5,7 @@ import type {
   MarkLineComponentOption,
   MarkPointComponentOption,
   ScatterSeriesOption,
+  TooltipComponentOption,
 } from 'echarts';
 
 function buildTooltipCost(order: Order | BTOrder, quoteCurrency: string): string {
@@ -230,6 +231,41 @@ export function generateTradeSeries(
   return tradesSeries;
 }
 
+/**
+ * Add a dashed horizontal line at an open trade's current rate to the trades series.
+ * The rate is the bot's cached rate (the same one shown on the open trade), so it can lag the
+ * exchange by a few seconds.
+ */
+export function appendCurrentPriceLine(
+  series: ScatterSeriesOption,
+  currentRate: number | undefined,
+  color: string,
+): void {
+  if (currentRate === undefined || !Number.isFinite(currentRate) || currentRate <= 0) {
+    return;
+  }
+  const line = {
+    name: 'Current price',
+    yAxis: currentRate,
+    label: {
+      show: true,
+      position: 'insideStartTop' as const,
+      formatter: `Current ${formatPrice(currentRate)}`,
+      color,
+    },
+    lineStyle: {
+      color,
+      type: 'dashed' as const,
+      width: 1,
+    },
+  };
+  if (!series.markLine) {
+    series.markLine = { symbol: 'none', data: [line] };
+  } else {
+    series.markLine.data = [...(series.markLine.data ?? []), line];
+  }
+}
+
 export function generateMarkArea(
   dataset: PairHistory,
   enabled: boolean,
@@ -238,6 +274,7 @@ export function generateMarkArea(
   markArea?: MarkAreaComponentOption;
   markLine?: MarkLineComponentOption;
   markPoint?: MarkPointComponentOption;
+  tooltip?: TooltipComponentOption;
 } {
   if (!dataset.annotations || !enabled) return {};
 
@@ -329,6 +366,10 @@ export function generateMarkArea(
     markArea,
     markLine,
     markPoint,
+    // The annotation series is only a carrier for the marks: keep it out of the tooltip.
+    tooltip: {
+      show: false,
+    },
   };
 }
 

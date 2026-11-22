@@ -30,6 +30,8 @@ export const useSettingsStore = defineStore('uiSettings', {
       _uiVersion: 'dev',
       useHeikinAshiCandles: false,
       showMarkArea: true,
+      /** Dashed line at the open trade's current rate on the candle chart. */
+      showCurrentPriceLine: true,
       useReducedPairCalls: true,
       notifications: notificationDefaults,
       profitDistributionBins: 20,

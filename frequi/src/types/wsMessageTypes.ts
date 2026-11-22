@@ -8,6 +8,8 @@ export enum FtWsMessageTypes {
   exitFill = 'exit_fill',
   exitCancel = 'exit_cancel',
   newCandle = 'new_candle',
+  /** Bot state changes (running / stopped / paused) and other status notes. */
+  status = 'status',
 }
 
 export interface FtBaseWsMessage {
@@ -59,6 +61,11 @@ export interface FtErrorMessage extends FtBaseWsMessage {
   data: string;
 }
 
+export interface FtStatusMessage extends FtBaseWsMessage {
+  type: FtWsMessageTypes.status;
+  status: string;
+}
+
 export type FTWsMessage =
   | FtErrorMessage
   | FtWhitelistMessage
@@ -66,4 +73,5 @@ export type FTWsMessage =
   | FTEntryCancelMessage
   | FtExitFillMessage
   | FTExitCancelMessage
-  | FtNewCandleMessage;
+  | FtNewCandleMessage
+  | FtStatusMessage;

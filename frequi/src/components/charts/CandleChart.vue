@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ChartSliderPosition, IndicatorConfig, PairHistory, PlotConfig, Trade } from '@/types';
 import { ChartType } from '@/types';
+import type { CandleTooltipContext, TooltipSeries } from '@/utils/charts/candleTooltip';
+import { formatCandleTooltip } from '@/utils/charts/candleTooltip';
 
 import ECharts from 'vue-echarts';
 
@@ -57,6 +59,7 @@ const props = defineProps<{
   dataset: PairHistory;
   heikinAshi: boolean;
   showMarkArea: boolean;
+  showCurrentPrice?: boolean;
   useUTC: boolean;
   plotConfig: PlotConfig;
   theme: 'dark' | 'light';
@@ -97,28 +100,16 @@ const chartOptions = shallowRef<EChartsOption>({});
  * updateChart() call - so they are handed over through this context.
  */
 const tooltipCtx: {
-  series: unknown[];
+  series: TooltipSeries[];
   dataset: unknown[][];
-  colOpen: number;
-  colHigh: number;
-  colLow: number;
-  colClose: number;
-  colEnterTag: number;
-  colExitTag: number;
+  cols: CandleTooltipContext['cols'];
+  paneNames: Record<number, string>;
 } = {
   series: [],
   dataset: [],
-  colOpen: -1,
-  colHigh: -1,
-  colLow: -1,
-  colClose: -1,
-  colEnterTag: -1,
-  colExitTag: -1,
+  cols: { open: -1, high: -1, low: -1, close: -1 },
+  paneNames: {},
 };
-
-type RichStyles = Record<string, Record<string, unknown>>;
-/** Tooltip text style including the `rich` styles used by the richText render mode. */
-type RichTooltipTextStyle = { color: string; rich: RichStyles };
 
 const strategy = computed(() => {
   return props.dataset ? props.dataset.strategy : '';
@@ -199,8 +190,12 @@ function updateChart(initial = false) {
   const colShortEntryData = columns.findIndex((el) => el === '_enter_short_signal_close');
   const colShortExitData = columns.findIndex((el) => el === '_exit_short_signal_close');
 
-  const subplotCount =
-    'subplots' in props.plotConfig ? Object.keys(props.plotConfig.subplots).length + 1 : 1;
+  // Subplots without any of their columns in this dataset are left out (e.g. a strategy plot
+  // config covering several kinds of pairs), instead of drawing empty panes.
+  const visibleSubplots = Object.entries(props.plotConfig.subplots ?? {}).filter(([, value]) =>
+    Object.keys(value).some((col) => columns.includes(col)),
+  );
+  const subplotCount = visibleSubplots.length + 1;
 
   if (Array.isArray(chartOptions.value?.dataZoom)) {
     // Only set zoom once ...
@@ -419,6 +414,8 @@ function updateChart(initial = false) {
           symbolRotate: signal.symbolRotate ?? 0,
           xAxisIndex: 0,
           yAxisIndex: 0,
+          // Read by the tooltip formatter (candleTooltip.ts).
+          ...({ __tipLabel: signal.tooltipPrefix, __tipTagCol: signal.colTooltip } as object),
           itemStyle: {
             color: signal.color,
           },
@@ -486,9 +483,11 @@ function updateChart(initial = false) {
   }
 
   // START Subplots
-  if ('subplots' in props.plotConfig) {
+  if (visibleSubplots.length > 0) {
     let plotIndex = 2;
-    Object.entries(props.plotConfig.subplots).forEach(([key, value]) => {
+    tooltipCtx.paneNames = {};
+    visibleSubplots.forEach(([key, value]) => {
+      tooltipCtx.paneNames[plotIndex] = key;
       // define yaxis
 
       // Subplots are added from bottom to top - only the "bottom-most" plot stays at the bottom.
@@ -603,30 +602,18 @@ function updateChart(initial = false) {
     props.dataset,
     filteredTrades.value,
   );
+  if (props.showCurrentPrice) {
+    const openTrade = filteredTrades.value.find((trade) => trade.is_open && trade.current_rate);
+    appendCurrentPriceLine(tradesSeries, openTrade?.current_rate, '#4c9aff');
+  }
   if (Array.isArray(options.series)) {
     options.series.push(tradesSeries);
   }
 
-  // Give every series a coloured-dot rich style keyed by its own colour, so the
-  // tooltip (which lists ALL series, every subplot) shows each value with the
-  // colour of its chart line.
-  if (Array.isArray(options.series)) {
-    const rich: RichStyles = {};
-
-    options.series.forEach((s: any, i: number) => {
-      const c = s?.itemStyle?.color ?? s?.lineStyle?.color ?? '#ffffff';
-      const dotKey = `dot${i}`;
-      s.__dotKey = dotKey;
-      rich[dotKey] = { color: typeof c === 'string' ? c : '#ffffff' };
-    });
-    // Register the dot styles on the tooltip (which lives in the base chart options).
-    Object.assign(tooltipTextStyle.rich, rich);
-  }
-
   // Hand the current data to the tooltip formatter.
-  tooltipCtx.series = Array.isArray(options.series) ? options.series : [];
+  tooltipCtx.series = (Array.isArray(options.series) ? options.series : []) as TooltipSeries[];
   tooltipCtx.dataset = dataset;
-  Object.assign(tooltipCtx, { colOpen, colHigh, colLow, colClose, colEnterTag, colExitTag });
+  tooltipCtx.cols = { open: colOpen, high: colHigh, low: colLow, close: colClose };
 
   // Merge this into original data
   Object.assign(chartOptions.value, options);
@@ -637,14 +624,7 @@ function updateChart(initial = false) {
   });
 }
 
-const tooltipTextStyle: RichTooltipTextStyle = {
-  color: '#fff',
-  rich: {
-    hdr: { fontWeight: 'bold', padding: [0, 0, 4, 0] },
-    n: { width: 130, align: 'left' }, // name column (values align after it)
-    v: { align: 'left' },
-  },
-};
+const TOOLTIP_TEXT_COLOR = '#e7ebf0';
 function initializeChartOptions() {
   // Ensure we start empty.
   candleChart.value?.setOption({}, { notMerge: true });
@@ -674,120 +654,34 @@ function initializeChartOptions() {
     tooltip: {
       show: true,
       trigger: 'axis',
-      // richText renders on the CANVAS, so the box is never clipped or scrolled
-      // by a DOM container — that DOM scroll is exactly what HTML mode caused.
-      // We iterate ALL series (every subplot) at the hovered candle, not just the
-      // series under the cursor, so the full indicator list always shows — needed
-      // to see which indicator is blocking an entry. Coloured dots via per-series
-      // `rich` styles (assigned below), name/value columns, single date header.
-      renderMode: 'richText',
+      // HTML tooltip (see utils/charts/candleTooltip.ts): ALL series of every subplot at the
+      // hovered candle, not only the pane under the cursor, so you can see which indicator
+      // blocks an entry. Confined to the chart so it never scrolls the page.
+      renderMode: 'html',
       formatter: (params) => {
-        const rows = Array.isArray(params) ? params : params ? [params] : [];
-        const { dataset, colOpen, colHigh, colLow, colClose, colEnterTag, colExitTag } = tooltipCtx;
-        const options = { series: tooltipCtx.series };
-        let header = '';
         try {
-          const h = rows[0]?.axisValueLabel ?? rows[0]?.axisValue;
-          if (h != null && h !== '') header = `{hdr|${h}}`;
-        } catch {
-          /* ignore */
-        }
-
-        // Preferred: list ALL series (every subplot) at the hovered candle.
-        try {
-          const di = rows[0]?.dataIndex;
-          const allSeries = Array.isArray(options.series) ? (options.series as any[]) : [];
-          if (di != null && Array.isArray(dataset) && dataset[di] && allSeries.length) {
-            const drow = dataset[di];
-            const parts: string[] = header ? [header] : [];
-            let prevKey: unknown;
-            const seen = new Set<string>();
-            for (const s of allSeries) {
-              try {
-                if (s?.tooltip && s.tooltip.show === false) continue; // area fills
-                const name = s?.name;
-                if (!name) continue;
-                const dot = s?.__dotKey ? `{${s.__dotKey}|●} ` : '';
-                const key = s?.xAxisIndex ?? 0;
-                let line = '';
-                if (name === 'Candles') {
-                  if (drow[colOpen] != null) {
-                    line =
-                      `${dot}{n|Candles}` +
-                      `{v|O ${drow[colOpen]} H ${drow[colHigh]} L ${drow[colLow]} C ${drow[colClose]}}`;
-                  }
-                } else if (s?.type === 'scatter') {
-                  const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
-                  const v = yEnc != null ? drow[yEnc] : undefined;
-                  if (v == null) continue;
-                  const tagCol = name === 'Exit' ? colExitTag : colEnterTag;
-                  const tag = drow[tagCol];
-                  line = `${dot}{n|${name}}{v|${tag != null ? tag : ''}}`;
-                } else {
-                  const yEnc = Array.isArray(s.encode?.y) ? s.encode.y[0] : s.encode?.y;
-                  const v = yEnc != null ? drow[yEnc] : undefined;
-                  if (v == null || v === '' || (typeof v === 'number' && Number.isNaN(v))) continue;
-                  if (seen.has(name)) continue;
-                  seen.add(name);
-                  line = `${dot}{n|${name}}{v|${v}}`;
-                }
-                if (!line) continue;
-                if (prevKey !== undefined && key !== prevKey) parts.push('');
-                parts.push(line);
-                prevKey = key;
-              } catch {
-                /* skip this series */
-              }
-            }
-            if (parts.length > (header ? 1 : 0)) return parts.join('\n');
-          }
-        } catch {
-          /* fall through to params-based render */
-        }
-
-        // Fallback: render the series ECharts handed us (hovered subplot only).
-        // This path is the proven one — it guarantees the box still appears.
-        try {
-          const parts: string[] = header ? [header] : [];
-          const seen = new Set<string>();
-          for (const p of rows) {
-            try {
-              const row = p?.value;
-              const marker = typeof p?.marker === 'string' ? p.marker : '';
-              if (p?.seriesName === 'Candles') {
-                if (Array.isArray(row) && row[colOpen] != null) {
-                  parts.push(
-                    `${marker}{n|Candles}{v|O ${row[colOpen]} H ${row[colHigh]} L ${row[colLow]} C ${row[colClose]}}`,
-                  );
-                }
-                continue;
-              }
-              if (p?.componentSubType === 'scatter') {
-                const tagCol = p.seriesName === 'Exit' ? colExitTag : colEnterTag;
-                const tag = Array.isArray(row) ? row[tagCol] : undefined;
-                parts.push(`${marker}{n|${p.seriesName}}{v|${tag ? String(tag) : ''}}`);
-                continue;
-              }
-              const yi = Array.isArray(p?.encode?.y) ? p.encode.y[0] : undefined;
-              const val = yi != null && Array.isArray(row) ? row[yi] : undefined;
-              if (val == null || val === '' || (typeof val === 'number' && Number.isNaN(val))) {
-                continue;
-              }
-              if (p?.seriesName && seen.has(p.seriesName)) continue;
-              if (p?.seriesName) seen.add(p.seriesName);
-              parts.push(`${marker}{n|${p?.seriesName ?? ''}}{v|${val}}`);
-            } catch {
-              /* skip row */
-            }
-          }
-          return parts.length ? parts.join('\n') : ' ';
+          const rows = Array.isArray(params) ? params : params ? [params] : [];
+          const first = rows[0] as { dataIndex?: number; axisValueLabel?: string } | undefined;
+          const di = first?.dataIndex;
+          return formatCandleTooltip({
+            series: tooltipCtx.series,
+            row: di !== undefined ? tooltipCtx.dataset[di] : undefined,
+            header: first?.axisValueLabel ?? '',
+            cols: tooltipCtx.cols,
+            paneNames: tooltipCtx.paneNames,
+            candleColor: upColor,
+          });
         } catch {
           return ' ';
         }
       },
-      backgroundColor: 'rgba(80,80,80,0.7)',
-      borderWidth: 0,
-      textStyle: tooltipTextStyle,
+      backgroundColor: 'rgba(18, 22, 28, 0.94)',
+      borderColor: '#2a313b',
+      borderWidth: 1,
+      textStyle: { color: TOOLTIP_TEXT_COLOR, fontSize: 12 },
+      // Stay inside the chart: no page scroll, and visible in full screen.
+      confine: true,
+      extraCssText: 'max-height: calc(100% - 16px); overflow: hidden;',
 
       axisPointer: {
         type: 'cross',
@@ -804,7 +698,7 @@ function initializeChartOptions() {
         // full (possibly long) indicator list has room without scrolling.
         const obj = { top: 8 };
         const mouseIsLeft = pos[0] < size.viewSize[0] / 2;
-        obj[['left', 'right'][+mouseIsLeft]!] = mouseIsLeft ? 5 : 60;
+        obj[['left', 'right'][+mouseIsLeft]!] = mouseIsLeft ? MARGINRIGHT : MARGINLEFT;
         return obj;
       },
     },
@@ -897,7 +791,17 @@ watch([() => props.useUTC, () => props.theme, () => props.plotConfig], () =>
   initializeChartOptions(),
 );
 
-watch([() => props.dataset, () => props.heikinAshi, () => props.showMarkArea], () => updateChart());
+watch(
+  [
+    () => props.dataset,
+    () => props.heikinAshi,
+    () => props.showMarkArea,
+    () => props.showCurrentPrice,
+    // The open trade's rate changes between candles too.
+    () => filteredTrades.value.find((trade) => trade.is_open)?.current_rate,
+  ],
+  () => updateChart(),
+);
 
 watch(
   () => props.sliderPosition,
