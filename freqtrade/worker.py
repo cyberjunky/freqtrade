@@ -6,6 +6,7 @@ import logging
 import time
 import traceback
 from collections.abc import Callable
+from datetime import UTC, datetime
 from os import getpid
 from typing import Any
 
@@ -19,13 +20,24 @@ from freqtrade.enums import RPCMessageType, State
 from freqtrade.exceptions import OperationalException, TemporaryError
 from freqtrade.exchange import timeframe_to_next_date
 from freqtrade.freqtradebot import FreqtradeBot
-from freqtrade.persistence import Trade
+from freqtrade.persistence import KeyValueStore, Trade
+from freqtrade.persistence.storage_health import (
+    format_bytes,
+    lowest_free_space,
+    storage_error_reason,
+    storage_paths,
+)
 
 
 logger = logging.getLogger(__name__)
 
 # Number of consecutive unexpected bot-loop failures after which trading is stopped.
 MAX_CONSECUTIVE_LOOP_ERRORS = 5
+# Free disk space below which a warning is sent, how often it is checked, and how often the
+# warning may repeat.
+LOW_DISK_WARNING_BYTES = 1024**3
+DISK_CHECK_INTERVAL_SECS = 600
+LOW_DISK_REPEAT_SECS = 6 * 3600
 
 
 class Worker:
@@ -45,6 +57,11 @@ class Worker:
 
         self._heartbeat_msg: float = 0
         self._consecutive_errors = 0
+        # Set while the database cannot be written (disk full, read-only, ...): trading pauses.
+        self._storage_down_since: float | None = None
+        self._storage_reason = ""
+        self._last_disk_check: float = 0
+        self._low_disk_warned: float = 0
 
         # Tell systemd that we completed initialization phase
         self._notify("READY=1")
@@ -201,6 +218,10 @@ class Worker:
         self.freqtrade.process_stopped()
 
     def _process_running(self) -> None:
+        if self._storage_down_since is not None and not self._storage_recovered():
+            time.sleep(RETRY_TIMEOUT)
+            return
+        self._check_free_disk()
         try:
             self.freqtrade.process()
             self._consecutive_errors = 0
@@ -218,6 +239,11 @@ class Worker:
             logger.exception("OperationalException. Stopping trader ...")
             self.freqtrade.state = State.STOPPED
         except Exception as error:
+            if reason := storage_error_reason(error):
+                self._rollback_session()
+                self._storage_failed(reason, error)
+                time.sleep(RETRY_TIMEOUT)
+                return
             # Any other failure (e.g. a PricingError while replacing an order) used to end the
             # process, leaving open positions unmanaged. Keep managing them instead, but stop
             # trading if the error keeps repeating.
@@ -243,6 +269,74 @@ class Worker:
                 self.freqtrade.state = State.STOPPED
             else:
                 time.sleep(RETRY_TIMEOUT)
+
+    def _free_space_text(self) -> str:
+        lowest = lowest_free_space(storage_paths(self._config or {}))
+        if lowest is None:
+            return "free space unknown"
+        return f"{format_bytes(lowest[1])} free on {lowest[0]}"
+
+    def _storage_failed(self, reason: str, error: Exception) -> None:
+        """
+        The database cannot be written. Placing orders now could leave orders on the exchange
+        that the bot does not know about (and would place again), so pause all trading until a
+        test write succeeds - no manual restart needed.
+        """
+        if self._storage_down_since is not None:
+            return
+        self._storage_down_since = time.time()
+        self._storage_reason = reason
+        self._consecutive_errors = 0
+        logger.error(
+            f"Database cannot be written ({reason}): {error!r}. "
+            f"Trading paused until it can be written again."
+        )
+        self.freqtrade.notify_status(
+            f"*Database cannot be written:* {reason} ({self._free_space_text()}).\n"
+            f"Trading is paused: no orders are placed and open trades are not managed until "
+            f"the database can be saved again. Checked every {RETRY_TIMEOUT} s; the bot resumes "
+            f"by itself (no /start needed). Free disk space or fix the database to recover.",
+            msg_type=RPCMessageType.EXCEPTION,
+        )
+
+    def _storage_recovered(self) -> bool:
+        """Test write to the database; on success resume trading."""
+        try:
+            KeyValueStore.store_value("db_write_check", datetime.now(UTC))
+        except Exception as error:
+            self._rollback_session()
+            logger.warning(
+                f"Database still cannot be written ({storage_error_reason(error) or error!r}), "
+                f"trading stays paused."
+            )
+            return False
+        minutes = (time.time() - (self._storage_down_since or time.time())) / 60
+        self._storage_down_since = None
+        logger.info(f"Database can be written again after {minutes:.0f} min, trading resumes.")
+        self.freqtrade.notify_status(
+            f"Database can be written again after {minutes:.0f} min "
+            f"(was: {self._storage_reason}, now {self._free_space_text()}). Trading resumes."
+        )
+        return True
+
+    def _check_free_disk(self) -> None:
+        """Warn before the disk is full, while there is still time to act."""
+        now = time.time()
+        if now - self._last_disk_check < DISK_CHECK_INTERVAL_SECS:
+            return
+        self._last_disk_check = now
+        lowest = lowest_free_space(storage_paths(self._config or {}))
+        if lowest is None or lowest[1] >= LOW_DISK_WARNING_BYTES:
+            return
+        if now - self._low_disk_warned < LOW_DISK_REPEAT_SECS:
+            return
+        self._low_disk_warned = now
+        msg = (
+            f"Low disk space: {format_bytes(lowest[1])} free on {lowest[0]}. When it runs out "
+            f"the database cannot be saved and trading pauses."
+        )
+        logger.warning(msg)
+        self.freqtrade.notify_status(msg, msg_type=RPCMessageType.WARNING)
 
     @staticmethod
     def _rollback_session() -> None:

@@ -267,6 +267,7 @@ def test_worker_process_running_unexpected_error(mocker, default_conf, caplog) -
 
     sleep_mock = mocker.patch("freqtrade.worker.time.sleep")
     rollback_mock = mocker.patch("freqtrade.worker.Trade.rollback")
+    mocker.patch("freqtrade.worker.lowest_free_space", return_value=None)  # real disk may be low
     worker = get_patched_worker(mocker, default_conf)
     worker.freqtrade.state = State.RUNNING
     status_mock = mocker.patch.object(worker.freqtrade, "notify_status")
@@ -300,3 +301,84 @@ def test_worker_process_running_unexpected_error(mocker, default_conf, caplog) -
     assert worker.freqtrade.state is State.STOPPED
     assert status_mock.call_count == 1
     assert log_has("Too many consecutive errors. Stopping trader ...", caplog)
+
+
+def test_worker_storage_error_pauses_and_resumes(mocker, default_conf, caplog) -> None:
+    import sqlite3
+
+    from sqlalchemy.exc import OperationalError
+
+    sleep_mock = mocker.patch("freqtrade.worker.time.sleep")
+    rollback_mock = mocker.patch("freqtrade.worker.Trade.rollback")
+    mocker.patch("freqtrade.worker.lowest_free_space", return_value=None)  # real disk may be low
+    store_mock = mocker.patch("freqtrade.worker.KeyValueStore.store_value")
+    worker = get_patched_worker(mocker, default_conf)
+    worker.freqtrade.state = State.RUNNING
+    status_mock = mocker.patch.object(worker.freqtrade, "notify_status")
+    full = OperationalError("COMMIT", {}, sqlite3.OperationalError("database or disk is full"))
+    process_mock = mocker.patch.object(worker.freqtrade, "process", side_effect=full)
+
+    # Disk full: roll back, pause (bot stays RUNNING, no /start needed), notify once.
+    worker._process_running()
+    assert worker._storage_down_since is not None
+    assert worker.freqtrade.state is State.RUNNING
+    assert rollback_mock.call_count == 1
+    assert sleep_mock.call_count == 1
+    assert status_mock.call_count == 1
+    assert "disk is full" in status_mock.call_args[0][0]
+    assert worker._consecutive_errors == 0
+
+    # Still full: the test write fails, nothing is traded, no new notification.
+    store_mock.side_effect = full
+    process_mock.reset_mock()
+    for _ in range(10):
+        worker._process_running()
+    assert process_mock.call_count == 0
+    assert status_mock.call_count == 1
+    assert worker.freqtrade.state is State.RUNNING
+
+    # Space freed: the test write succeeds, trading resumes and that is reported.
+    store_mock.side_effect = None
+    process_mock.side_effect = None
+    worker._process_running()
+    assert worker._storage_down_since is None
+    assert process_mock.call_count == 1
+    assert status_mock.call_count == 2
+    assert "Trading resumes" in status_mock.call_args[0][0]
+    assert log_has_re(r"Database can be written again after .*", caplog)
+
+
+def test_worker_low_disk_warning(mocker, default_conf, tmp_path) -> None:
+    from freqtrade.enums import RPCMessageType
+
+    default_conf["user_data_dir"] = tmp_path
+    worker = get_patched_worker(mocker, default_conf)
+    worker._config = default_conf
+    status_mock = mocker.patch.object(worker.freqtrade, "notify_status")
+    usage = mocker.patch("freqtrade.persistence.storage_health.shutil.disk_usage")
+    usage.return_value.free = 300 * 1024**2
+
+    worker._check_free_disk()
+    assert status_mock.call_count == 1
+    assert "300 MB free" in status_mock.call_args[0][0]
+    assert status_mock.call_args[1]["msg_type"] == RPCMessageType.WARNING
+
+    # Not again within the check interval / repeat window.
+    worker._last_disk_check = 0
+    worker._check_free_disk()
+    assert status_mock.call_count == 1
+
+
+def test_storage_error_reason() -> None:
+    import errno
+    import sqlite3
+
+    from sqlalchemy.exc import OperationalError
+
+    from freqtrade.persistence.storage_health import storage_error_reason
+
+    wrapped = OperationalError("COMMIT", {}, sqlite3.OperationalError("database or disk is full"))
+    assert storage_error_reason(wrapped) == "disk is full"
+    assert storage_error_reason(OSError(errno.ENOSPC, "x")) == "disk is full"
+    assert storage_error_reason(sqlite3.OperationalError("attempt to write a readonly database"))
+    assert storage_error_reason(ValueError("no price")) is None

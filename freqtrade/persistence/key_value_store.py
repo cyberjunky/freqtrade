@@ -25,6 +25,7 @@ KeyStoreKeys = Literal[
     "binance_migration",
     "wallet_history_migration",
     "wallet_history_migration_date",
+    "db_write_check",
 ]
 
 
