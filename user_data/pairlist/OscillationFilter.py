@@ -15,6 +15,11 @@ Four metrics (computed over the full lookback window AND a short recent window):
                         61.8 = random walk, 38.2 = strong trend.
   spike_ratio         — max single-candle range / mean candle range.
                         High values = isolated spike candles that blow grids.
+  mean_range_pct      — average candle range as % of price (volatility level).
+                        Mean-reversion needs a Goldilocks band: too low = dead
+                        tape where moves never pay the fees; too high = knife
+                        regime where fades get run over. Optional min/max
+                        (min_atr_pct / max_atr_pct, 0 = disabled).
 
 The recent-window check (default last 24 h) uses its own thresholds so a pair
 that oscillated for 6 days but just broke out intraday is still rejected.
@@ -64,6 +69,13 @@ class OscillationFilter(IPairList):
         self._max_doji_ratio: float = self._pairlistconfig.get("max_doji_ratio", 0.3)
         self._doji_threshold: float = self._pairlistconfig.get("doji_threshold", 0.001)
 
+        # Volatility band (Goldilocks): mean candle range as % of price must sit
+        # between these bounds. 0 disables a bound. Calibrated 2026, 1h candles,
+        # BloFin USDT perps: dead tape (BNB 0.66%, BTC 0.70%) vs knives (LAB 6.7%);
+        # tradeable pairs clustered 0.9-1.9%.
+        self._min_atr_pct: float = float(self._pairlistconfig.get("min_atr_pct", 0.0))
+        self._max_atr_pct: float = float(self._pairlistconfig.get("max_atr_pct", 0.0))
+
         # Recent-window parameters — catches intraday breakouts
         self._recent_hours: int = self._pairlistconfig.get("recent_hours", 24)
         self._recent_min_oscillation: float = self._pairlistconfig.get(
@@ -97,7 +109,8 @@ class OscillationFilter(IPairList):
             f"rev/day>={self._min_reversals_per_day:.1f} "
             f"chop>={self._min_choppiness:.0f} "
             f"spike<={self._max_spike_ratio:.1f}x "
-            f"doji<={self._max_doji_ratio:.0%} | "
+            f"doji<={self._max_doji_ratio:.0%} "
+            f"atr%[{self._min_atr_pct:.1f},{self._max_atr_pct:.1f}] | "
             f"recent {self._recent_hours}h: "
             f"osc>={self._recent_min_oscillation:.0%} "
             f"chop>={self._recent_min_choppiness:.0f}"
@@ -181,6 +194,28 @@ class OscillationFilter(IPairList):
                     "0.001 = body smaller than 0.1% of price counts as doji."
                 ),
             },
+            "min_atr_pct": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Min Mean Range % (volatility floor)",
+                "help": (
+                    "Minimum average candle range as % of price. Below this the "
+                    "pair is dead tape — moves too small to pay fees for "
+                    "mean-reversion. 0 disables. ~0.8 for 1h candles on crypto "
+                    "perps (BNB/BTC-class majors fall below in quiet regimes)."
+                ),
+            },
+            "max_atr_pct": {
+                "type": "number",
+                "default": 0.0,
+                "description": "Max Mean Range % (volatility ceiling)",
+                "help": (
+                    "Maximum average candle range as % of price. Above this the "
+                    "pair is in knife regime — spikes blow through cycle/grid "
+                    "logic. 0 disables. ~3.5 for 1h candles (LAB-class movers "
+                    "run 5%+)."
+                ),
+            },
             "recent_hours": {
                 "type": "number",
                 "default": 24,
@@ -241,8 +276,8 @@ class OscillationFilter(IPairList):
                 self.log_once(f"OscillationFilter: removed {p} — no candle data.", logger.info)
                 continue
 
-            osc_ratio, reversals_per_day, choppiness, spike_ratio, doji_ratio, recent_osc, recent_chop = metrics
-            if self._validate_pair(p, osc_ratio, reversals_per_day, choppiness, spike_ratio, doji_ratio, recent_osc, recent_chop):
+            osc_ratio, reversals_per_day, choppiness, spike_ratio, doji_ratio, atr_pct, recent_osc, recent_chop = metrics
+            if self._check_pair_metrics(p, osc_ratio, reversals_per_day, choppiness, spike_ratio, doji_ratio, atr_pct, recent_osc, recent_chop):
                 result.append(p)
 
         # Log summary only when the passing count changes — filter_pairlist is called on
@@ -295,7 +330,7 @@ class OscillationFilter(IPairList):
 
     def _calculate_metrics(
         self, pair: str, candles: DataFrame | None
-    ) -> tuple[float, float, float, float, float, float, float] | None:
+    ) -> tuple[float, float, float, float, float, float, float, float] | None:
         if (cached := self._pair_cache.get(pair, None)) is not None:
             return cached  # type: ignore[return-value]
 
@@ -316,10 +351,11 @@ class OscillationFilter(IPairList):
         low = df["low"].values
         opens = df["open"].values
 
-        # ---- Spike ratio ----------------------------------------------
+        # ---- Spike ratio + volatility level -----------------------------
         range_pct = (high - low) / np.where(closes > 0, closes, 1.0)
         mean_range = float(range_pct.mean())
         spike_ratio = float(range_pct.max()) / mean_range if mean_range > 0 else 0.0
+        atr_pct = mean_range * 100.0  # mean candle range as % of price
 
         # ---- Doji ratio -----------------------------------------------
         body_ratio = np.abs(closes - opens) / np.where(closes > 0, closes, 1.0)
@@ -337,7 +373,7 @@ class OscillationFilter(IPairList):
             recent_osc = osc_ratio
             recent_chop = choppiness
 
-        metrics = (osc_ratio, reversals_per_day, choppiness, spike_ratio, doji_ratio, recent_osc, recent_chop)
+        metrics = (osc_ratio, reversals_per_day, choppiness, spike_ratio, doji_ratio, atr_pct, recent_osc, recent_chop)
         self._pair_cache[pair] = metrics
         return metrics
 
@@ -345,7 +381,7 @@ class OscillationFilter(IPairList):
     # Validation
     # ------------------------------------------------------------------
 
-    def _validate_pair(
+    def _check_pair_metrics(
         self,
         pair: str,
         osc_ratio: float,
@@ -353,6 +389,7 @@ class OscillationFilter(IPairList):
         choppiness: float,
         spike_ratio: float,
         doji_ratio: float,
+        atr_pct: float,
         recent_osc: float,
         recent_chop: float,
     ) -> bool:
@@ -371,6 +408,12 @@ class OscillationFilter(IPairList):
             failures.append(f"spike={spike_ratio:.1f}x > {self._max_spike_ratio:.1f}x")
         if doji_ratio > self._max_doji_ratio:
             failures.append(f"doji={doji_ratio:.0%} > {self._max_doji_ratio:.0%}")
+
+        # Volatility band (Goldilocks): dead tape and knife regimes both fail
+        if self._min_atr_pct > 0 and atr_pct < self._min_atr_pct:
+            failures.append(f"atr%={atr_pct:.2f} < {self._min_atr_pct:.2f} (dead tape)")
+        if self._max_atr_pct > 0 and atr_pct > self._max_atr_pct:
+            failures.append(f"atr%={atr_pct:.2f} > {self._max_atr_pct:.2f} (knife regime)")
 
         # Recent-window checks (catches intraday breakouts)
         if recent_osc < self._recent_min_oscillation:
