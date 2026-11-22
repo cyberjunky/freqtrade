@@ -130,7 +130,7 @@ class Blofin(Exchange):
         # the per-pair history before it reaches the >=2 candles the reuse check
         # needs. Net result with WS on: zero reuse, just connection overhead + log
         # spam. REST fallback already serves correct data, so run REST-only.
-        "ws_enabled": False,
+        "ws_enabled": {"ohlcv": False, "orderbook": False},
         # set_leverage is called with a whole number - size and record trades accordingly.
         "floor_leverage": True,
     }
