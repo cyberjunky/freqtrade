@@ -1260,6 +1260,53 @@ tc59 = BTContainer(
 )
 
 
+# Test 60: copy of Test 35 at 3x leverage. The trailing stop arms and triggers in the entry
+# candle; the worst case is price reaching the +2% profit offset (2% / 3 = 0.667% of price) and
+# falling back the 1% trailing distance (0.333% of price): exit at 5000 * 1.00333 = 5016.67,
+# +1% profit. The offset used to be applied as a 2% price move: exit 5083.3, +5% profit.
+tc60 = BTContainer(
+    data=[
+        # D   O     H     L     C    V    EL XL ES Xs  BT
+        [0, 5000, 5050, 4950, 5000, 6172, 1, 0],
+        [1, 5000, 5500, 4900, 4900, 6172, 0, 0],  # enter trade (signal on last candle) and stop
+        [2, 4900, 5250, 4500, 5100, 6172, 0, 0],
+        [3, 5100, 5100, 4650, 4750, 6172, 0, 0],
+        [4, 4750, 4950, 4350, 4750, 6172, 0, 0],
+    ],
+    stop_loss=-0.10,
+    roi={"0": 1},
+    profit_perc=0.01,
+    trailing_stop=True,
+    trailing_only_offset_is_reached=True,
+    trailing_stop_positive_offset=0.02,
+    trailing_stop_positive=0.01,
+    leverage=3.0,
+    trades=[BTrade(exit_reason=ExitType.TRAILING_STOP_LOSS, open_tick=1, close_tick=1)],
+)
+
+# Test 61: Test 60 as a short: exit at 5000 * (1 - 0.00333) = 4983.33, +1% profit.
+tc61 = BTContainer(
+    data=[
+        # D   O     H     L     C    V    EL XL ES Xs  BT
+        [0, 5000, 5050, 4950, 5000, 6172, 0, 0, 1, 0],
+        [1, 5000, 5100, 4500, 5100, 6172, 0, 0, 0, 0],  # enter short and stop
+        [2, 5100, 5250, 4900, 5000, 6172, 0, 0, 0, 0],
+        [3, 5000, 5150, 4900, 5150, 6172, 0, 0, 0, 0],
+        [4, 5150, 5250, 5050, 5250, 6172, 0, 0, 0, 0],
+    ],
+    stop_loss=-0.10,
+    roi={"0": 1},
+    profit_perc=0.01,
+    trailing_stop=True,
+    trailing_only_offset_is_reached=True,
+    trailing_stop_positive_offset=0.02,
+    trailing_stop_positive=0.01,
+    leverage=3.0,
+    trades=[
+        BTrade(exit_reason=ExitType.TRAILING_STOP_LOSS, open_tick=1, close_tick=1, is_short=True)
+    ],
+)
+
 TESTS = [
     tc0,
     tc1,
@@ -1321,6 +1368,8 @@ TESTS = [
     tc57,
     tc58,
     tc59,
+    tc60,
+    tc61,
 ]
 
 
