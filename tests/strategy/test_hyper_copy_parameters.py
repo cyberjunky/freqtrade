@@ -36,3 +36,20 @@ def test_a_value_set_on_one_instance_does_not_leak():
     first.buy_ma.value = ta.EMA
     assert second.buy_len.value == 30 and second.buy_ma.value is ta.SMA
     assert _Strategy.buy_len.value == 30 and _Strategy.buy_ma.value is ta.SMA
+
+
+class _StrategyWithParams(_Strategy):
+    # what hyperopt writes into a strategy: TA-Lib functions as values (discordsocialist)
+    buy_params = {"buy_len": 40, "buy_ma": ta.EMA}
+
+
+def test_params_dicts_with_uncopyable_values_load():
+    strategy = _StrategyWithParams.__new__(_StrategyWithParams)
+    strategy.config = {}
+    strategy._ft_params_from_file = {}
+    strategy._HyperStrategyMixin__ft_params_from_api = {}
+    strategy._ft_copy_parameters()
+    strategy.ft_load_hyper_params(False)  # deep-copied buy_params: failed with '_thread._local'
+    assert strategy.buy_len.value == 40
+    assert strategy.buy_ma.value is ta.EMA
+    assert _StrategyWithParams.buy_params == {"buy_len": 40, "buy_ma": ta.EMA}  # left untouched

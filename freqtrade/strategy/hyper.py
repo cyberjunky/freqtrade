@@ -33,6 +33,29 @@ AllSpaceParams = dict[str, SpaceParams]
 SpaceParamValues = dict[str, dict[str, Any]]
 
 
+def _own_copy(value: Any) -> Any:
+    """A deep copy, or as close as possible when parts can't be copied.
+
+    Strategies put TA-Lib functions (they hold a thread-local) or dict.keys() views in their
+    parameters and in buy_params / sell_params; deepcopy fails on those ("cannot pickle
+    '_thread._local' object") and the strategy failed to load or start (lite C6). Then dicts and
+    lists are copied element by element and a parameter object shallowly (still the instance's
+    own, so its value doesn't leak); anything else is shared, not copied: it is only ever read,
+    and a copied function would no longer equal itself, so a CategoricalParameter would reject
+    it as "not one of the options".
+    """
+    try:
+        return deepcopy(value)
+    except (TypeError, RecursionError):
+        if isinstance(value, dict):
+            return {k: _own_copy(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_own_copy(v) for v in value]
+        if isinstance(value, BaseParameter):
+            return copy(value)
+        return value
+
+
 class HyperStrategyMixin:
     """
     A helper base class which allows HyperOptAuto class to reuse implementations of buy/sell
@@ -64,16 +87,9 @@ class HyperStrategyMixin:
                 continue
             attr = getattr(type(self), attr_name, None)
             if isinstance(attr, BaseParameter):
-                try:
-                    own = deepcopy(attr)
-                except (TypeError, RecursionError):
-                    # A parameter holding something that can't be copied (TA-Lib functions in a
-                    # CategoricalParameter([ta.SMA, ta.EMA]), a dict.keys() view, ..) made the
-                    # strategy fail to load at all. A shallow copy is still this instance's own
-                    # parameter object (its value doesn't leak); only the read-only options are
-                    # shared.
-                    own = copy(attr)
-                setattr(self, attr_name, own)
+                # its own object even when parts of it can't be deep-copied (C6): the
+                # value doesn't leak, only read-only options may be shared
+                setattr(self, attr_name, _own_copy(attr))
 
     def enumerate_parameters(self, space: str | None = None) -> Iterator[tuple[str, BaseParameter]]:
         """
@@ -131,7 +147,7 @@ class HyperStrategyMixin:
 
         for space in self._ft_hyper_params:
             params_values = deep_merge_dicts(
-                used_params.get(space, {}), deepcopy(getattr(self, f"{space}_params", {}))
+                used_params.get(space, {}), _own_copy(getattr(self, f"{space}_params", {}))
             )
             self._ft_set_param(self._ft_hyper_params[space], params_values, space, hyperopt)
 
