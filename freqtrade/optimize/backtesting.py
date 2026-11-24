@@ -638,13 +638,6 @@ class Backtesting:
                     + side_1 * abs(self.strategy.trailing_stop_positive_offset / leverage)
                     - side_1 * abs(self.strategy.trailing_stop_positive / leverage)
                 )
-            elif (
-                self.strategy.use_custom_stoploss and side_1 * (stoploss_value - row[OPEN_IDX]) > 0
-            ):
-                # custom_stoploss moved the stop beyond the entry inside this candle. It is computed
-                # from the candle's best price, so price traded through the stop level: the worst
-                # realistic exit is the stop itself, not "a tick past open".
-                stop_rate = stoploss_value
             else:
                 # Worst case: price ticks tiny bit above the entry and dives down.
                 stop_rate = trade.open_rate * (

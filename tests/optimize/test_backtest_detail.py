@@ -756,8 +756,6 @@ tc35 = BTContainer(
 
 # Test 36: trailing_stop should be triggered immediately on trade open candle.
 # stop-loss: 1%, ROI: 10% (should not apply)
-# custom_stoploss moves the stop to 5500 * 0.99 = 5445 (beyond the entry) and the candle closes
-# below it, so price crossed the stop on its way down: exit at the stop, not a tick past open.
 tc36 = BTContainer(
     data=[
         # D   O     H     L     C    V    EL XL ES Xs  BT
@@ -769,7 +767,7 @@ tc36 = BTContainer(
     ],
     stop_loss=-0.01,
     roi={"0": 0.10},
-    profit_perc=0.089,
+    profit_perc=-0.01,
     trailing_stop=True,
     trailing_only_offset_is_reached=True,
     trailing_stop_positive_offset=0.02,
@@ -791,7 +789,7 @@ tc37 = BTContainer(
     ],
     stop_loss=-0.01,
     roi={"0": 0.10},
-    profit_perc=0.089,
+    profit_perc=-0.01,
     trailing_stop=True,
     trailing_only_offset_is_reached=True,
     trailing_stop_positive_offset=0.02,
@@ -807,7 +805,7 @@ tc37 = BTContainer(
     ],
 )
 # Test 38: trailing_stop should be triggered immediately on trade open candle.
-# copy of Test37 using shorts: stop moves to 4500 * 1.01 = 4545, candle closes above it.
+# copy of Test37 using shorts.
 # stop-loss: 1%, ROI: 10% (should not apply)
 tc38 = BTContainer(
     data=[
@@ -820,7 +818,7 @@ tc38 = BTContainer(
     ],
     stop_loss=-0.01,
     roi={"0": 0.10},
-    profit_perc=0.091,
+    profit_perc=-0.01,
     trailing_stop=True,
     trailing_only_offset_is_reached=True,
     trailing_stop_positive_offset=0.02,
