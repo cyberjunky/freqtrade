@@ -3,7 +3,7 @@
 # human look before the merge is committed (see LITE.md, "Keeping up with upstream"):
 #
 #   1. upstream changes to code lite removed (FreqAI, plotting, webhook/Discord,
-#      producer/consumer, strategy-updater, Edge): must NOT come back;
+#      producer/consumer, Edge): must NOT come back;
 #   2. upstream changes to files lite fixed for backtest accuracy (A1-A14): check that the
 #      merge keeps lite's fix and that upstream didn't change the same logic another way;
 #   3. merge conflicts.
@@ -23,7 +23,7 @@ echo "upstream develop: $n new commits"
 [ "$n" = 0 ] && exit 0
 git log --oneline --no-merges lite..upstream/develop | sed 's/^/  /'
 
-REMOVED='freqtrade/freqai/|freqtrade/plot/|freqtrade/rpc/webhook\.py|freqtrade/rpc/discord\.py|external_message_consumer|producer_pairlist|ProducerPairList|strategyupdater|strategy_utils_commands|requirements-freqai|requirements-plot|Dockerfile\.(freqai|plot)|docs/(freqai|plotting|webhook-config|producer-consumer)|tests/freqai/'
+REMOVED='freqtrade/freqai/|freqtrade/plot/|freqtrade/rpc/webhook\.py|freqtrade/rpc/discord\.py|external_message_consumer|producer_pairlist|ProducerPairList|requirements-freqai|requirements-plot|Dockerfile\.(freqai|plot)|docs/(freqai|plotting|webhook-config|producer-consumer)|tests/freqai/'
 FIXED='freqtrade/optimize/backtesting\.py|freqtrade/strategy/interface\.py|freqtrade/persistence/trade_model\.py|freqtrade/freqtradebot\.py|freqtrade/exchange/exchange\.py|freqtrade/optimize/backtest_caching\.py'
 
 changed=$(git diff --name-only lite...upstream/develop)

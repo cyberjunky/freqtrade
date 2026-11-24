@@ -400,3 +400,15 @@ Print trades with id 2 and 3 as json
 ``` bash
 freqtrade show-trades --db-url sqlite:///tradesv3.sqlite --trade-ids 2 3 --print-json
 ```
+
+## Strategy-Updater
+
+Updates listed strategies or all strategies within the strategies folder to be v3 compliant.
+If the command runs without --strategy-list then all strategies inside the strategies folder will be converted.
+Your original strategy will remain available in the `user_data/strategies_orig_updater/` directory.
+
+!!! Warning "Conversion results"
+    Strategy updater will work on a "best effort" approach. Please do your due diligence and verify the results of the conversion.
+    We also recommend to run a python formatter (e.g. `ruff format`) to format results in a sane manner.
+
+--8<-- "commands/strategy-updater.md"

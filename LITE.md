@@ -18,7 +18,8 @@ changes on top of that.
 | Area | Decision |
 | --- | --- |
 | Exchanges | All kept, as upstream plus this fork's BloFin adapter. A first pass removed everything except BloFin, Hyperliquid and Kraken; that was reversed (see 2.5). |
-| `strategy-updater`, Edge stubs | Removed. |
+| `strategy-updater` | Kept (removed at first, restored 2026-11-24, see 2.6). |
+| Edge stubs | Removed. |
 | FreqUI | Redesigned (see section 6). |
 | FreqAI | Removed. |
 | Plotting (`plot-dataframe`, `plot-profit`, plotly) | Removed. FreqUI charts are unaffected. |
@@ -94,8 +95,9 @@ behaviour differs from `improvements` except for the changes listed in section 4
 
 ### 2.6 Legacy commands ✅
 
-- **`strategy-updater`** (the interface v2 to v3 converter) and its only dependency,
-  `ast-comments`.
+- **`strategy-updater`** (the interface v2 to v3 converter): removed at first, then restored
+  from upstream `develop` on 2026-11-24. It is small (one module, one command, the
+  `ast-comments` dependency) and still needed: Freqle converts old strategies with it.
 - **Edge leftovers:** the hidden `edge` subcommand and the config check that only printed that
   Edge was removed.
 - A dataframe `drop` call in backtesting whose result was discarded.
@@ -167,7 +169,7 @@ started.
 
 Remaining candidates, to be removed only where nothing kept depends on them: strategy interface
 v2 compatibility shims, deprecated-setting handling, legacy backtest-result loaders, deprecated
-`/forcebuy` and `/forcesell` API routes. (`strategy-updater` and the Edge stubs are done, see 2.6.
+`/forcebuy` and `/forcesell` API routes. (The Edge stubs are done, see 2.6; `strategy-updater` stays.
 The Bybit/OKX funding-timeframe migration and the margin-interest code stay, because those
 exchanges are kept.)
 
@@ -180,7 +182,7 @@ exchanges are kept.)
 merges without committing and lists the three things to check first:
 
 - **Removed code coming back.** Upstream changes to FreqAI, plotting, webhook/Discord,
-  producer/consumer, strategy-updater or Edge are not taken; new files in those areas are
+  producer/consumer or Edge are not taken; new files in those areas are
   `git rm`-ed from the merge.
 - **Lite's accuracy fixes.** Upstream changes to the files of A1-A14 (`backtesting.py`,
   `interface.py`, `trade_model.py`, `freqtradebot.py`, `exchange.py`) are read against the fix:

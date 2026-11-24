@@ -1,11 +1,11 @@
 ``` output
 usage: freqtrade [-h] [-V]
-                 {trade,create-userdir,new-config,show-config,new-strategy,download-data,convert-data,convert-trade-data,trades-to-ohlcv,list-data,backtesting,backtesting-show,backtesting-analysis,hyperopt,hyperopt-list,hyperopt-show,list-exchanges,list-markets,list-pairs,list-strategies,list-hyperoptloss,list-timeframes,show-trades,test-pairlist,convert-db,install-ui,webserver,lookahead-analysis,recursive-analysis} ...
+                 {trade,create-userdir,new-config,show-config,new-strategy,download-data,convert-data,convert-trade-data,trades-to-ohlcv,list-data,backtesting,backtesting-show,backtesting-analysis,hyperopt,hyperopt-list,hyperopt-show,list-exchanges,list-markets,list-pairs,list-strategies,list-hyperoptloss,list-timeframes,show-trades,test-pairlist,convert-db,install-ui,webserver,strategy-updater,lookahead-analysis,recursive-analysis} ...
 
 Free, open source crypto trading bot
 
 positional arguments:
-  {trade,create-userdir,new-config,show-config,new-strategy,download-data,convert-data,convert-trade-data,trades-to-ohlcv,list-data,backtesting,backtesting-show,backtesting-analysis,hyperopt,hyperopt-list,hyperopt-show,list-exchanges,list-markets,list-pairs,list-strategies,list-hyperoptloss,list-timeframes,show-trades,test-pairlist,convert-db,install-ui,webserver,lookahead-analysis,recursive-analysis}
+  {trade,create-userdir,new-config,show-config,new-strategy,download-data,convert-data,convert-trade-data,trades-to-ohlcv,list-data,backtesting,backtesting-show,backtesting-analysis,hyperopt,hyperopt-list,hyperopt-show,list-exchanges,list-markets,list-pairs,list-strategies,list-hyperoptloss,list-timeframes,show-trades,test-pairlist,convert-db,install-ui,webserver,strategy-updater,lookahead-analysis,recursive-analysis}
     trade               Trade module.
     create-userdir      Create user-data directory.
     new-config          Create new config
@@ -35,6 +35,7 @@ positional arguments:
     convert-db          Migrate database to different system
     install-ui          Install FreqUI
     webserver           Webserver module.
+    strategy-updater    updates outdated strategy files to the current version
     lookahead-analysis  Check for potential look ahead bias.
     recursive-analysis  Check for potential recursive formula issue.
 

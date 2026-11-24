@@ -40,5 +40,6 @@ from freqtrade.commands.optimize_commands import (
     start_recursive_analysis,
 )
 from freqtrade.commands.pairlist_commands import start_test_pairlist
+from freqtrade.commands.strategy_utils_commands import start_strategy_update
 from freqtrade.commands.trade_commands import start_trading
 from freqtrade.commands.webserver_commands import start_webserver
