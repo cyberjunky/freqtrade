@@ -36,11 +36,13 @@ echo "== new dependencies / version changes:"
 git diff lite...upstream/develop -- requirements.txt requirements-hyperopt.txt | grep -E '^[+-][A-Za-z]' | sed 's/^/  /' || echo "  none"
 
 echo
-if git merge --no-ff --no-commit upstream/develop >/dev/null 2>&1; then
+if out=$(git merge --no-ff --no-commit upstream/develop 2>&1); then
     echo "merged without conflicts (not committed)"
-else
+elif [ -n "$(git diff --name-only --diff-filter=U)" ]; then
     echo "conflicts:"
     git diff --name-only --diff-filter=U | sed 's/^/  /'
+else
+    echo "merge failed:"; echo "$out" | sed 's/^/  /'; exit 1
 fi
 # files upstream added in removed areas come back silently in a clean merge: list them
 back=$(git diff --cached --name-only --diff-filter=A | grep -E "$REMOVED" || true)
