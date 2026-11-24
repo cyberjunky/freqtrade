@@ -173,6 +173,26 @@ exchanges are kept.)
 
 ---
 
+### 4.5 Keeping up with upstream
+
+`lite` follows upstream `develop` by merging it, never rebasing (merge commits so far:
+`ef86a2909` 2026-11-21, `da1456386` 2026-11-24). `scripts/lite-sync.sh` fetches upstream,
+merges without committing and lists the three things to check first:
+
+- **Removed code coming back.** Upstream changes to FreqAI, plotting, webhook/Discord,
+  producer/consumer, strategy-updater or Edge are not taken; new files in those areas are
+  `git rm`-ed from the merge.
+- **Lite's accuracy fixes.** Upstream changes to the files of A1-A14 (`backtesting.py`,
+  `interface.py`, `trade_model.py`, `freqtradebot.py`, `exchange.py`) are read against the fix:
+  the merge has to keep it, and an upstream rewrite of the same logic is ported onto it, not
+  taken as is.
+- **Dependencies.** Version bumps come with the merge; a new dependency is only taken when the
+  code that needs it is.
+
+Then the tests (`tests/optimize` and `tests/strategy` at least), commit, push. Freqle's runner
+image pins a `lite` commit (`docker/runner.Dockerfile`, `LITE_COMMIT`) and moves to a new one
+only together with a League re-run.
+
 ## 5. Verification
 
 A local virtualenv (`.venv`, Python 3.14) runs the test suite and `ruff`. Run the suite with
