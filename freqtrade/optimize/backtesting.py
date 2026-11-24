@@ -553,6 +553,16 @@ class Backtesting:
             data[pair] = df_analyzed[HEADERS].values.tolist() if not df_analyzed.empty else []
         return data
 
+    def _valid_custom_price(self, custom_price: float, proposed_price: float) -> float:
+        """custom_entry_price / custom_exit_price limited to custom_price_max_distance_ratio
+        of the proposed price, as FreqtradeBot.get_valid_price does live."""
+        try:
+            price = float(custom_price)
+        except (TypeError, ValueError):
+            return proposed_price
+        ratio = self.config.get("custom_price_max_distance_ratio", 0.02)
+        return max(min(price, proposed_price * (1 + ratio)), proposed_price * (1 - ratio))
+
     def _get_close_rate(
         self,
         row: tuple,
@@ -560,24 +570,34 @@ class Backtesting:
         current_time: datetime,
         exit_: ExitCheckTuple,
         trade_dur: int,
+        fill_candle: bool | None = None,
     ) -> float:
         """
         Get close rate for backtesting result
+        :param trade_dur: minutes since the trade was opened (its first entry order was placed),
+            for the ROI table
+        :param fill_candle: this is the candle the first entry order filled in. The same-candle
+            assumptions below apply to that candle, which for a limit entry that rests can be a
+            later one than the trade's open_date. Defaults to trade_dur == 0.
         """
+        if fill_candle is None:
+            fill_candle = trade_dur == 0
         # Special handling if high or low hit STOP_LOSS or ROI
         if exit_.exit_type in (
             ExitType.STOP_LOSS,
             ExitType.TRAILING_STOP_LOSS,
             ExitType.LIQUIDATION,
         ):
-            return self._get_close_rate_for_stoploss(row, trade, exit_, trade_dur)
+            return self._get_close_rate_for_stoploss(row, trade, exit_, fill_candle)
         elif exit_.exit_type == (ExitType.ROI):
-            return self._get_close_rate_for_roi(row, trade, current_time, exit_, trade_dur)
+            return self._get_close_rate_for_roi(
+                row, trade, current_time, exit_, trade_dur, fill_candle
+            )
         else:
             return row[OPEN_IDX]
 
     def _get_close_rate_for_stoploss(
-        self, row: tuple, trade: LocalTrade, exit_: ExitCheckTuple, trade_dur: int
+        self, row: tuple, trade: LocalTrade, exit_: ExitCheckTuple, fill_candle: bool
     ) -> float:
         # our stoploss was already lower than candle high,
         # possibly due to a cancelled trade exit.
@@ -600,7 +620,7 @@ class Backtesting:
         # Special case: trailing triggers within same candle as trade opened. Assume most
         # pessimistic price movement, which is moving just enough to arm stoploss and
         # immediately going down to stop price.
-        if exit_.exit_type == ExitType.TRAILING_STOP_LOSS and trade_dur == 0:
+        if exit_.exit_type == ExitType.TRAILING_STOP_LOSS and fill_candle:
             if (
                 not self.strategy.use_custom_stoploss
                 and self.strategy.trailing_stop
@@ -612,7 +632,8 @@ class Backtesting:
                 # and the trailing distance are profit ratios, so both are divided by leverage to
                 # become price moves (the offset used to be applied as a price move as is, booking
                 # each such exit `leverage` times too favourably).
-                stop_rate = row[OPEN_IDX] * (
+                # Anchored on the entry price, which a limit entry can fill away from the open.
+                stop_rate = trade.open_rate * (
                     1
                     + side_1 * abs(self.strategy.trailing_stop_positive_offset / leverage)
                     - side_1 * abs(self.strategy.trailing_stop_positive / leverage)
@@ -625,17 +646,18 @@ class Backtesting:
                 # realistic exit is the stop itself, not "a tick past open".
                 stop_rate = stoploss_value
             else:
-                # Worst case: price ticks tiny bit above open and dives down.
-                stop_rate = row[OPEN_IDX] * (
+                # Worst case: price ticks tiny bit above the entry and dives down.
+                stop_rate = trade.open_rate * (
                     1 - side_1 * abs((trade.stop_loss_pct or 0.0) / leverage)
                 )
 
-            # Limit lower-end to candle low to avoid exits below the low.
-            # This still remains "worst case" - but "worst realistic case".
+            # Never better than the trade's own stop (which the candle's best price set) and
+            # never outside the candle: below the low is not "worst realistic case", above the
+            # high would not fill.
             if is_short:
-                return min(row[HIGH_IDX], stop_rate)
+                return min(row[HIGH_IDX], max(row[LOW_IDX], stoploss_value, stop_rate))
             else:
-                return max(row[LOW_IDX], stop_rate)
+                return max(row[LOW_IDX], min(row[HIGH_IDX], stoploss_value, stop_rate))
 
         # Set close_rate to stoploss
         return stoploss_value
@@ -647,6 +669,7 @@ class Backtesting:
         current_time: datetime,
         exit_: ExitCheckTuple,
         trade_dur: int,
+        fill_candle: bool,
     ) -> float:
         is_short = trade.is_short or False
         roi_entry, roi = self.strategy.min_roi_reached_entry(
@@ -676,7 +699,7 @@ class Backtesting:
                 # use Open rate if open_rate > calculated exit rate
                 return row[OPEN_IDX]
 
-            if trade_dur == 0 and (
+            if fill_candle and (
                 (
                     is_short
                     # Red candle (for longs)
@@ -866,8 +889,16 @@ class Backtesting:
             exit_reason = exit_.exit_reason
             amount_ = amount if amount is not None else trade.amount
             trade_dur = int((trade.close_date_utc - trade.open_date_utc).total_seconds() // 60)
+            entry_fills = [
+                o.order_filled_utc
+                for o in trade.orders
+                if o.ft_order_side == trade.entry_side and o.order_filled_utc
+            ]
+            fill_candle = (min(entry_fills) if entry_fills else trade.open_date_utc) == current_time
             try:
-                close_rate = self._get_close_rate(row, trade, current_time, exit_, trade_dur)
+                close_rate = self._get_close_rate(
+                    row, trade, current_time, exit_, trade_dur, fill_candle
+                )
             except ValueError:
                 return None
             # call the custom exit price,with default value as previous close_rate
@@ -877,6 +908,7 @@ class Backtesting:
                 ExitType.EXIT_SIGNAL,
                 ExitType.CUSTOM_EXIT,
                 ExitType.PARTIAL_EXIT,
+                ExitType.ROI,
             ):
                 # Checks and adds an exit tag, after checking that the length of the
                 # row has the length for an exit tag column
@@ -887,7 +919,8 @@ class Backtesting:
                     and exit_.exit_type in (ExitType.EXIT_SIGNAL,)
                 ):
                     exit_reason = row[EXIT_TAG_IDX]
-                # Custom exit pricing only for exit-signals
+                # Custom exit pricing for limit exits other than stops (live calls it for every
+                # limit exit; stops are priced at the stop here)
                 if order_type == "limit":
                     rate = strategy_safe_wrapper(
                         self.strategy.custom_exit_price, default_retval=close_rate
@@ -900,7 +933,7 @@ class Backtesting:
                         exit_tag=exit_reason,
                     )
                     if rate is not None and rate != close_rate:
-                        close_rate = rate
+                        close_rate = self._valid_custom_price(rate, close_rate)
                     # We can't place orders lower than current low.
                     # freqtrade does not support this in live, and the order would fill immediately
                     if trade.is_short:
@@ -1056,7 +1089,11 @@ class Backtesting:
             # We can't place orders higher than current high (otherwise it'd be a stop limit entry)
             # which freqtrade does not support in live.
             if new_rate is not None and new_rate != propose_rate:
-                propose_rate = price_to_precision(new_rate, price_precision, precision_mode_price)
+                propose_rate = price_to_precision(
+                    self._valid_custom_price(new_rate, propose_rate),
+                    price_precision,
+                    precision_mode_price,
+                )
             if direction == "short":
                 propose_rate = max(propose_rate, row[LOW_IDX])
             else:

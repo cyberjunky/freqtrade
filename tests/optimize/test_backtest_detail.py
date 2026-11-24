@@ -908,6 +908,10 @@ tc42 = BTContainer(
     trades=[BTrade(exit_reason=ExitType.ROI, open_tick=1, close_tick=2)],
 )
 
+# Tests 43-58 set custom prices further than the default custom_price_max_distance_ratio
+# (2 %, applied live and in backtests) from the market, to test the candle clamps; those
+# raise the ratio to 20 %.
+
 # Test 43: Custom-entry-price around candle low
 # Would cause immediate ROI exit below close
 # details: https://github.com/freqtrade/freqtrade/issues/6261
@@ -924,6 +928,7 @@ tc43 = BTContainer(
     roi={"0": 0.01},
     profit_perc=0.01,
     custom_entry_price=4952,
+    custom_price_max_distance_ratio=0.2,
     trades=[BTrade(exit_reason=ExitType.ROI, open_tick=1, close_tick=1)],
 )
 
@@ -943,6 +948,7 @@ tc44 = BTContainer(
     profit_perc=-0.01,
     use_exit_signal=True,
     custom_exit_price=4552,
+    custom_price_max_distance_ratio=0.2,
     trades=[BTrade(exit_reason=ExitType.EXIT_SIGNAL, open_tick=1, close_tick=3)],
 )
 
@@ -981,6 +987,7 @@ tc46 = BTContainer(
     profit_perc=0.0,
     use_exit_signal=True,
     custom_exit_price=4700,
+    custom_price_max_distance_ratio=0.2,
     trades=[BTrade(exit_reason=ExitType.FORCE_EXIT, open_tick=1, close_tick=4, is_short=True)],
 )
 
@@ -1039,6 +1046,7 @@ tc49 = BTContainer(
     timeout=1000,
     custom_entry_price=5300,
     adjust_entry_price=5000,
+    custom_price_max_distance_ratio=0.2,
     trades=[BTrade(exit_reason=ExitType.EXIT_SIGNAL, open_tick=1, close_tick=4, is_short=True)],
 )
 
@@ -1059,6 +1067,7 @@ tc50 = BTContainer(
     timeout=1000,
     custom_entry_price=4200,
     adjust_entry_price=None,
+    custom_price_max_distance_ratio=0.2,
     trades=[],
 )
 
@@ -1120,6 +1129,7 @@ tc53 = BTContainer(
     timeout=1000,
     custom_entry_price=5300,
     adjust_entry_price=5000,
+    custom_price_max_distance_ratio=0.2,
     trades=[BTrade(exit_reason=ExitType.STOP_LOSS, open_tick=1, close_tick=2, is_short=True)],
 )
 
@@ -1214,6 +1224,7 @@ tc57 = BTContainer(
         None,
         None,
     ],
+    custom_price_max_distance_ratio=0.2,
     trades=[
         BTrade(exit_reason=ExitType.EXIT_SIGNAL, open_tick=1, close_tick=6, is_short=False),
     ],
@@ -1236,6 +1247,7 @@ tc58 = BTContainer(
     timeout=1000,
     custom_exit_price=4300,
     adjust_exit_price=5050,
+    custom_price_max_distance_ratio=0.2,
     trades=[BTrade(exit_reason=ExitType.EXIT_SIGNAL, open_tick=1, close_tick=4, is_short=True)],
 )
 
@@ -1307,6 +1319,92 @@ tc61 = BTContainer(
     ],
 )
 
+# Test 62: Limit entry rests and fills on the next candle; the trailing stop arms and triggers
+# in that fill candle. Same pessimism as an entry-candle trigger (tc35): price reached the
+# offset after the fill, then fell back the trailing distance: entry * (1 + 0.02 - 0.01) = 4949.
+# Before, the fill candle counted as a later candle: armed from its high, exit at 5148 (+5.06 %).
+tc62 = BTContainer(
+    data=[
+        # D   O     H     L     C    V    EL XL ES Xs  BT
+        [0, 5000, 5050, 4950, 5000, 6172, 1, 0],
+        [1, 5000, 5050, 4950, 5000, 6172, 0, 0],  # order at 4900, no fill
+        [2, 5000, 5200, 4850, 4900, 6172, 0, 0],  # fill at 4900, trailing triggers
+        [3, 4900, 4950, 4850, 4900, 6172, 0, 0],
+        [4, 4900, 4950, 4850, 4900, 6172, 0, 0],
+    ],
+    stop_loss=-0.10,
+    roi={"0": 1},
+    profit_perc=0.01,
+    trailing_stop=True,
+    trailing_only_offset_is_reached=True,
+    trailing_stop_positive_offset=0.02,
+    trailing_stop_positive=0.01,
+    timeout=1000,
+    custom_entry_price=4900,
+    trades=[BTrade(exit_reason=ExitType.TRAILING_STOP_LOSS, open_tick=1, close_tick=2)],
+)
+
+# Test 63: Limit entry fills on the next, red candle below its open; ROI 3 % (5047) would need
+# price to rise after the fill, which the candle doesn't show (#6261 guard, now on the fill
+# candle). ROI on the following candle instead.
+tc63 = BTContainer(
+    data=[
+        # D   O     H     L     C    V    EL XL ES Xs  BT
+        [0, 5000, 5050, 4950, 5000, 6172, 1, 0],
+        [1, 5000, 5050, 4950, 5000, 6172, 0, 0],  # order at 4900, no fill
+        [2, 5000, 5200, 4850, 4900, 6172, 0, 0],  # fill at 4900, no ROI on this candle
+        [3, 4950, 5100, 4900, 5000, 6172, 0, 0],  # ROI at 5047
+        [4, 5000, 5050, 4950, 5000, 6172, 0, 0],
+    ],
+    stop_loss=-0.10,
+    roi={"0": 0.03},
+    profit_perc=0.03,
+    timeout=1000,
+    custom_entry_price=4900,
+    trades=[BTrade(exit_reason=ExitType.ROI, open_tick=1, close_tick=3)],
+)
+
+# Test 64: Limit entry fills below the open in the entry candle; trailing arms and triggers in
+# that candle. The worst case is anchored on the entry price (4900 * 1.01 = 4949, +1 %), not on
+# the candle open (5000 * 1.01 = 5050, +3.06 %, above the trade's own stop of 5009.4).
+tc64 = BTContainer(
+    data=[
+        # D   O     H     L     C    V    EL XL ES Xs  BT
+        [0, 5000, 5050, 4950, 5000, 6172, 1, 0],
+        [1, 5000, 5060, 4800, 4900, 6172, 0, 0],  # fill at 4900, trailing triggers
+        [2, 4900, 4950, 4850, 4900, 6172, 0, 0],
+        [3, 4900, 4950, 4850, 4900, 6172, 0, 0],
+    ],
+    stop_loss=-0.10,
+    roi={"0": 1},
+    profit_perc=0.01,
+    trailing_stop=True,
+    trailing_only_offset_is_reached=True,
+    trailing_stop_positive_offset=0.02,
+    trailing_stop_positive=0.01,
+    custom_entry_price=4900,
+    trades=[BTrade(exit_reason=ExitType.TRAILING_STOP_LOSS, open_tick=1, close_tick=1)],
+)
+
+# Test 65: custom_entry_price 10 % below the open is limited to 2 % below it
+# (custom_price_max_distance_ratio, as live): fills at 4900 instead of never at 4500.
+tc65 = BTContainer(
+    data=[
+        # D   O     H     L     C    V    EL XL ES Xs  BT
+        [0, 5000, 5050, 4950, 5000, 6172, 1, 0],
+        [1, 5000, 5050, 4800, 5000, 6172, 0, 0],  # fill at 4900
+        [2, 5000, 5050, 4950, 5000, 6172, 0, 1],  # exit signal
+        [3, 5047, 5100, 5000, 5050, 6172, 0, 0],  # exit at the open, 5047 = +3 %
+        [4, 5000, 5050, 4950, 5000, 6172, 0, 0],
+    ],
+    stop_loss=-0.10,
+    roi={"0": 1},
+    profit_perc=0.03,
+    use_exit_signal=True,
+    custom_entry_price=4500,
+    trades=[BTrade(exit_reason=ExitType.EXIT_SIGNAL, open_tick=1, close_tick=3)],
+)
+
 TESTS = [
     tc0,
     tc1,
@@ -1370,6 +1468,10 @@ TESTS = [
     tc59,
     tc60,
     tc61,
+    tc62,
+    tc63,
+    tc64,
+    tc65,
 ]
 
 
@@ -1395,6 +1497,8 @@ def test_backtest_results(default_conf, mocker, caplog, data: BTContainer) -> No
         default_conf["trailing_stop_positive"] = data.trailing_stop_positive
     default_conf["trailing_stop_positive_offset"] = data.trailing_stop_positive_offset
     default_conf["use_exit_signal"] = data.use_exit_signal
+    if data.custom_price_max_distance_ratio is not None:
+        default_conf["custom_price_max_distance_ratio"] = data.custom_price_max_distance_ratio
     default_conf["max_open_trades"] = 10
 
     patch_exchange(mocker)

@@ -1265,6 +1265,22 @@ class IStrategy(ABC, HyperStrategyMixin):
             current_rate_best = (low if trade.is_short else high) or rate
             current_profit_best = trade.calc_profit_ratio(current_rate_best)
 
+        # Backtesting: custom_exit acts at the candle's open, so it runs before the candle's
+        # high and low reach the trade (max_rate / min_rate, and the stop that trails from
+        # them). Live, it only ever sees prices that already traded; calling it after the update
+        # handed it the rest of the candle.
+        backtesting = low is not None or high is not None
+        early_custom_exit = False
+        if backtesting and self.use_exit_signal and not (exit_ and not enter):
+            trade.adjust_min_max_rates(current_rate, current_rate)
+            early_custom_exit = strategy_safe_wrapper(self.custom_exit, default_retval=False)(
+                pair=trade.pair,
+                trade=trade,
+                current_time=current_time,
+                current_rate=current_rate,
+                current_profit=current_profit,
+            )
+
         trade.adjust_min_max_rates(high or current_rate, low or current_rate)
 
         stoplossflag = self.ft_stoploss_reached(
@@ -1290,12 +1306,16 @@ class IStrategy(ABC, HyperStrategyMixin):
             if exit_ and not enter:
                 exit_signal = ExitType.EXIT_SIGNAL
             else:
-                reason_cust = strategy_safe_wrapper(self.custom_exit, default_retval=False)(
-                    pair=trade.pair,
-                    trade=trade,
-                    current_time=current_time,
-                    current_rate=current_rate,
-                    current_profit=current_profit,
+                reason_cust = (
+                    early_custom_exit
+                    if backtesting
+                    else strategy_safe_wrapper(self.custom_exit, default_retval=False)(
+                        pair=trade.pair,
+                        trade=trade,
+                        current_time=current_time,
+                        current_rate=current_rate,
+                        current_profit=current_profit,
+                    )
                 )
                 if reason_cust:
                     exit_signal = ExitType.CUSTOM_EXIT

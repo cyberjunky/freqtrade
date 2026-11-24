@@ -797,6 +797,36 @@ def test_should_exit_bound_profit_reuse(default_conf, fee, is_short, trailing, c
     assert trade_opt.stop_loss != trade_nobound.stop_loss
 
 
+def test_custom_exit_backtest_sees_only_the_open(default_conf, fee) -> None:
+    """In backtesting custom_exit acts at the candle's open, so it must not see the candle's
+    own low/high in trade.min_rate / max_rate (live, it only sees prices that traded)."""
+    strategy = StrategyResolver.load_strategy(default_conf)
+    trade = Trade(
+        pair="ETH/BTC",
+        stake_amount=0.01,
+        amount=1,
+        open_date=dt_now() - timedelta(hours=1),
+        fee_open=fee.return_value,
+        fee_close=fee.return_value,
+        exchange="binance",
+        open_rate=1,
+        leverage=1.0,
+    )
+    trade.adjust_min_max_rates(1, 1)
+    seen = {}
+
+    def custom_exit(trade, **kwargs):
+        seen["min"], seen["max"] = trade.min_rate, trade.max_rate
+        return "drawdown" if trade.min_rate < 0.97 else None
+
+    strategy.custom_exit = custom_exit
+    res = strategy.should_exit(trade, 1, dt_now(), enter=False, exit_=False, low=0.94, high=1.05)
+    assert seen == {"min": 1, "max": 1}
+    assert [r.exit_type for r in res if r.exit_type == ExitType.CUSTOM_EXIT] == []
+    # the candle still reaches the trade afterwards, for the stop and the next candle
+    assert trade.min_rate == 0.94 and trade.max_rate == 1.05
+
+
 def test_custom_exit(default_conf, fee, caplog) -> None:
     strategy = StrategyResolver.load_strategy(default_conf)
     trade = Trade(

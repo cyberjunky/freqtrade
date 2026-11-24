@@ -47,6 +47,8 @@ class BTContainer(NamedTuple):
     adjust_entry_price: float | None = None
     adjust_exit_price: float | None = None
     adjust_trade_position: list[float] | None = None
+    # None = the config default (0.02, as live)
+    custom_price_max_distance_ratio: float | None = None
 
 
 def _get_frame_time_from_offset(offset):
