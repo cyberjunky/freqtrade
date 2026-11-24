@@ -6,7 +6,7 @@ This module defines a base class for auto-hyperoptable strategies.
 import logging
 from collections import defaultdict
 from collections.abc import Iterator
-from copy import deepcopy
+from copy import copy, deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +64,16 @@ class HyperStrategyMixin:
                 continue
             attr = getattr(type(self), attr_name, None)
             if isinstance(attr, BaseParameter):
-                setattr(self, attr_name, deepcopy(attr))
+                try:
+                    own = deepcopy(attr)
+                except (TypeError, RecursionError):
+                    # A parameter holding something that can't be copied (TA-Lib functions in a
+                    # CategoricalParameter([ta.SMA, ta.EMA]), a dict.keys() view, ..) made the
+                    # strategy fail to load at all. A shallow copy is still this instance's own
+                    # parameter object (its value doesn't leak); only the read-only options are
+                    # shared.
+                    own = copy(attr)
+                setattr(self, attr_name, own)
 
     def enumerate_parameters(self, space: str | None = None) -> Iterator[tuple[str, BaseParameter]]:
         """
