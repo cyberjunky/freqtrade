@@ -802,6 +802,14 @@ class WalletHistoryResponse(BaseModel):
     capture_start_ts: int | None = None
 
 
+class MarketReferenceResponse(BaseModel):
+    exchange: str
+    timeframe: str
+    pairs: list[str]
+    # [timestamp_ms, close of pairs[0], close of pairs[1], ...]; None where a pair has no candle
+    data: list[list[float | None]]
+
+
 class MarketRequest(ExchangeModePayloadMixin, BaseModel):
     base: str | None = None
     quote: str | None = None

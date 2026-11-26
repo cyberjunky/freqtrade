@@ -46,3 +46,12 @@ export interface WalletHistory {
 export interface WalletHistoryPerBot {
   [botId: string]: WalletHistory;
 }
+
+/** Hourly closes of the market reference basket on a bot's exchange (/market_reference). */
+export interface MarketReference {
+  exchange: string;
+  timeframe: string;
+  pairs: string[];
+  /** [timestamp_ms, close of pairs[0], close of pairs[1], ...]; null where a pair has no candle */
+  data: (number | null)[][];
+}

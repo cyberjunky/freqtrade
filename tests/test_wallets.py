@@ -9,7 +9,7 @@ from freqtrade.constants import UNLIMITED_STAKE_AMOUNT
 from freqtrade.exceptions import DependencyException
 from freqtrade.exchange.exchange_utils import TICK_SIZE
 from freqtrade.persistence import LocalTrade, Order, Trade, WalletHistory
-from freqtrade.util import dt_now
+from freqtrade.util import dt_now, dt_utc
 from freqtrade.wallets import PositionWallet, Wallet, Wallets
 from tests.conftest import (
     EXMS,
@@ -809,6 +809,30 @@ def test_record_wallet_state_stores_wallet_history(mocker, default_conf_usdt):
     assert records_by_currency["ETH/USDT:USDT"].balance == 0.8
     assert records_by_currency["ETH/USDT:USDT"].rate == 2500.1
     assert records_by_currency["ETH/USDT:USDT"].bot_managed is True
+
+
+@pytest.mark.usefixtures("init_persistence")
+def test_record_wallet_state_hourly(mocker, default_conf_usdt, time_machine):
+    """One snapshot per hour; a second one in the same hour replaces the first."""
+    freqtrade = get_patched_freqtradebot(mocker, default_conf_usdt)
+    stake_currency = default_conf_usdt["stake_currency"]
+    freqtrade.wallets._positions = {}
+    mocker.patch.object(freqtrade.exchange, "get_conversion_rate", return_value=1.0)
+
+    def snapshot(at, total):
+        time_machine.move_to(at, tick=False)
+        freqtrade.wallets._wallets = {
+            stake_currency: Wallet(stake_currency, free=total, used=0, total=total)
+        }
+        freqtrade.wallets.record_wallet_state()
+
+    snapshot(dt_utc(2024, 1, 1, 10, 7), 100.0)
+    snapshot(dt_utc(2024, 1, 1, 10, 40), 101.0)
+    snapshot(dt_utc(2024, 1, 1, 11, 7), 102.0)
+
+    rows = WalletHistory.session.query(WalletHistory).order_by(WalletHistory.timestamp).all()
+    assert [(r.timestamp.hour, r.timestamp.minute) for r in rows] == [(10, 0), (11, 0)]
+    assert [r.total_quote for r in rows] == [101.0, 102.0]
 
 
 @pytest.mark.usefixtures("init_persistence")

@@ -29,6 +29,7 @@ declare global {
   const botUiMode: typeof import('./composables/botInfo').botUiMode
   const botUiState: typeof import('./composables/botInfo').botUiState
   const calculateDiff: typeof import('./utils/charts/areaPlotDataset').calculateDiff
+  const closedPoints: typeof import('./utils/charts/botCompare').closedPoints
   const computed: typeof import('vue').computed
   const computedAsync: typeof import('@vueuse/core').computedAsync
   const computedEager: typeof import('@vueuse/core').computedEager
@@ -62,6 +63,7 @@ declare global {
   const eagerComputed: typeof import('@vueuse/core').eagerComputed
   const echartsGridDefault: typeof import('./utils/charts/chartZoom').echartsGridDefault
   const effectScope: typeof import('vue').effectScope
+  const equityPoints: typeof import('./utils/charts/botCompare').equityPoints
   const escapeHtml: typeof import('./utils/charts/candleTooltip').escapeHtml
   const evaluateFeatures: typeof import('./utils/features').evaluateFeatures
   const exportForTesting: typeof import('./utils/formatters/timeformat').exportForTesting
@@ -119,6 +121,8 @@ declare global {
   const mapStores: typeof import('pinia').mapStores
   const mapWritableState: typeof import('pinia').mapWritableState
   const markRaw: typeof import('vue').markRaw
+  const marketDirection: typeof import('./utils/charts/botCompare').marketDirection
+  const marketStats: typeof import('./utils/charts/botCompare').marketStats
   const nextTick: typeof import('vue').nextTick
   const numberformat: (typeof import('./utils/formatters/numberformat'))['default']
   const onActivated: typeof import('vue').onActivated
@@ -157,6 +161,7 @@ declare global {
   const reactivePick: typeof import('@vueuse/core').reactivePick
   const readThemeTokens: typeof import('./utils/themeTokens').readThemeTokens
   const readonly: typeof import('vue').readonly
+  const rebase: typeof import('./utils/charts/botCompare').rebase
   const ref: typeof import('vue').ref
   const refAutoReset: typeof import('@vueuse/core').refAutoReset
   const refDebounced: typeof import('@vueuse/core').refDebounced
@@ -164,6 +169,7 @@ declare global {
   const refManualReset: typeof import('@vueuse/core').refManualReset
   const refThrottled: typeof import('@vueuse/core').refThrottled
   const refWithControl: typeof import('@vueuse/core').refWithControl
+  const referenceSeries: typeof import('./utils/charts/botCompare').referenceSeries
   const refreshThemeTokens: typeof import('./utils/themeTokens').refreshThemeTokens
   const resolveComponent: typeof import('vue').resolveComponent
   const resolveRef: typeof import('@vueuse/core').resolveRef
@@ -401,6 +407,7 @@ declare global {
   const useWindowScroll: typeof import('@vueuse/core').useWindowScroll
   const useWindowSize: typeof import('@vueuse/core').useWindowSize
   const usedColumns: (typeof import('./utils/charts/usedColumns'))['default']
+  const valueAt: typeof import('./utils/charts/botCompare').valueAt
   const watch: typeof import('vue').watch
   const watchArray: typeof import('@vueuse/core').watchArray
   const watchAtMost: typeof import('@vueuse/core').watchAtMost
@@ -442,6 +449,9 @@ declare global {
   export type { ShowAlertType } from './utils/alerts'
   import('./utils/alerts')
   // @ts-ignore
+  export type { Point, MarketDirection, MarketStats } from './utils/charts/botCompare'
+  import('./utils/charts/botCompare')
+  // @ts-ignore
   export type { SupportedSeriesTypes } from './utils/charts/candleChartSeries'
   import('./utils/charts/candleChartSeries')
   // @ts-ignore
@@ -476,6 +486,7 @@ declare module 'vue' {
     readonly botUiMode: UnwrapRef<typeof import('./composables/botInfo')['botUiMode']>
     readonly botUiState: UnwrapRef<typeof import('./composables/botInfo')['botUiState']>
     readonly calculateDiff: UnwrapRef<typeof import('./utils/charts/areaPlotDataset')['calculateDiff']>
+    readonly closedPoints: UnwrapRef<typeof import('./utils/charts/botCompare')['closedPoints']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
     readonly computedAsync: UnwrapRef<typeof import('@vueuse/core')['computedAsync']>
     readonly computedEager: UnwrapRef<typeof import('@vueuse/core')['computedEager']>
@@ -509,6 +520,7 @@ declare module 'vue' {
     readonly eagerComputed: UnwrapRef<typeof import('@vueuse/core')['eagerComputed']>
     readonly echartsGridDefault: UnwrapRef<typeof import('./utils/charts/chartZoom')['echartsGridDefault']>
     readonly effectScope: UnwrapRef<typeof import('vue')['effectScope']>
+    readonly equityPoints: UnwrapRef<typeof import('./utils/charts/botCompare')['equityPoints']>
     readonly escapeHtml: UnwrapRef<typeof import('./utils/charts/candleTooltip')['escapeHtml']>
     readonly evaluateFeatures: UnwrapRef<typeof import('./utils/features')['evaluateFeatures']>
     readonly exportForTesting: UnwrapRef<typeof import('./utils/formatters/timeformat')['exportForTesting']>
@@ -561,6 +573,8 @@ declare module 'vue' {
     readonly mapStores: UnwrapRef<typeof import('pinia')['mapStores']>
     readonly mapWritableState: UnwrapRef<typeof import('pinia')['mapWritableState']>
     readonly markRaw: UnwrapRef<typeof import('vue')['markRaw']>
+    readonly marketDirection: UnwrapRef<typeof import('./utils/charts/botCompare')['marketDirection']>
+    readonly marketStats: UnwrapRef<typeof import('./utils/charts/botCompare')['marketStats']>
     readonly nextTick: UnwrapRef<typeof import('vue')['nextTick']>
     readonly onActivated: UnwrapRef<typeof import('vue')['onActivated']>
     readonly onBeforeMount: UnwrapRef<typeof import('vue')['onBeforeMount']>
@@ -598,6 +612,7 @@ declare module 'vue' {
     readonly reactivePick: UnwrapRef<typeof import('@vueuse/core')['reactivePick']>
     readonly readThemeTokens: UnwrapRef<typeof import('./utils/themeTokens')['readThemeTokens']>
     readonly readonly: UnwrapRef<typeof import('vue')['readonly']>
+    readonly rebase: UnwrapRef<typeof import('./utils/charts/botCompare')['rebase']>
     readonly ref: UnwrapRef<typeof import('vue')['ref']>
     readonly refAutoReset: UnwrapRef<typeof import('@vueuse/core')['refAutoReset']>
     readonly refDebounced: UnwrapRef<typeof import('@vueuse/core')['refDebounced']>
@@ -605,6 +620,7 @@ declare module 'vue' {
     readonly refManualReset: UnwrapRef<typeof import('@vueuse/core')['refManualReset']>
     readonly refThrottled: UnwrapRef<typeof import('@vueuse/core')['refThrottled']>
     readonly refWithControl: UnwrapRef<typeof import('@vueuse/core')['refWithControl']>
+    readonly referenceSeries: UnwrapRef<typeof import('./utils/charts/botCompare')['referenceSeries']>
     readonly refreshThemeTokens: UnwrapRef<typeof import('./utils/themeTokens')['refreshThemeTokens']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
     readonly resolveRef: UnwrapRef<typeof import('@vueuse/core')['resolveRef']>
@@ -837,6 +853,7 @@ declare module 'vue' {
     readonly useWindowFocus: UnwrapRef<typeof import('@vueuse/core')['useWindowFocus']>
     readonly useWindowScroll: UnwrapRef<typeof import('@vueuse/core')['useWindowScroll']>
     readonly useWindowSize: UnwrapRef<typeof import('@vueuse/core')['useWindowSize']>
+    readonly valueAt: UnwrapRef<typeof import('./utils/charts/botCompare')['valueAt']>
     readonly watch: UnwrapRef<typeof import('vue')['watch']>
     readonly watchArray: UnwrapRef<typeof import('@vueuse/core')['watchArray']>
     readonly watchAtMost: UnwrapRef<typeof import('@vueuse/core')['watchAtMost']>

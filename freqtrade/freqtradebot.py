@@ -186,7 +186,7 @@ class FreqtradeBot(LoggingMixin):
             # schedule is in local time by default (!)
             # Explicit timezones must be configured explicitly.
             self._schedule.every().day.at("00:02").do(self.exchange.ws_connection_reset)
-            self._schedule.every().day.at("00:07").do(self.wallets.record_wallet_state)
+            self._schedule.every().hour.at(":07").do(self.wallets.record_wallet_state)
 
             self.strategy.ft_bot_start()
             # Initialize protections AFTER bot start - otherwise parameters are not loaded.

@@ -34,7 +34,8 @@ export type FeatureKey =
   | 'forceExitWithPrice'
   | 'downloadDataPrepend'
   | 'strategyParameters'
-  | 'walletChange';
+  | 'walletChange'
+  | 'marketReference';
 
 export type BotFeatures = Record<FeatureKey, boolean>;
 
@@ -77,4 +78,5 @@ export const FEATURES: Record<FeatureKey, FeatureConfig> = {
   downloadDataPrepend: { minVersion: 2.46, description: 'Prepend data when downloading' },
   strategyParameters: { minVersion: 2.47, description: 'Strategy parameters' },
   walletChange: { minVersion: 2.48, description: 'Wallet change data endpoint' },
+  marketReference: { minVersion: 2.52, description: 'Market reference basket (lite)' },
 };

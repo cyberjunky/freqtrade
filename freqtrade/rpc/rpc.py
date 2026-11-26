@@ -865,6 +865,57 @@ class RPC:
         hist = KeyValueStore.get_datetime_value("wallet_history_migration_date")
         return results_final, dt_ts_def(hist, 0)
 
+    MARKET_REFERENCE_BASES = ("BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "LINK", "LTC")
+
+    def _rpc_market_reference(self, days: int) -> dict[str, Any]:
+        """
+        Hourly closes of a fixed reference basket on the bot's own exchange,
+        cached for 10 minutes. The basket and its statistics are computed by the client.
+        """
+        now = dt_now()
+        cached = getattr(self, "_market_reference_cache", None)
+        if cached and cached[0] == days and now - cached[1] < timedelta(minutes=10):
+            return cached[2]
+
+        exchange = self._freqtrade.exchange
+        stake = self._config["stake_currency"]
+        suffix = f":{stake}" if self._config.get("trading_mode") == TradingMode.FUTURES else ""
+        pairs = [
+            p
+            for p in (f"{base}/{stake}{suffix}" for base in self.MARKET_REFERENCE_BASES)
+            if p in exchange.markets
+        ]
+        if not pairs:
+            raise RPCException("None of the market reference pairs exist on this exchange.")
+
+        since = timeframe_to_prev_date("1h", now - timedelta(days=days))
+        candles = exchange.refresh_latest_ohlcv(
+            [(p, "1h", self._config["candle_type_def"]) for p in pairs],
+            since_ms=dt_ts(since),
+            cache=False,
+            drop_incomplete=False,
+        )
+        closes = {
+            key[0]: df.set_index("date")["close"] for key, df in candles.items() if not df.empty
+        }
+        pairs = [p for p in pairs if p in closes]
+        if not pairs:
+            raise RPCException("No market reference candles available.")
+        df = concat([closes[p] for p in pairs], axis=1, keys=pairs).sort_index()
+        df = df.loc[df.index >= since]
+
+        result = {
+            "exchange": exchange.name,
+            "timeframe": "1h",
+            "pairs": pairs,
+            "data": [
+                [dt_ts(ts), *(None if isnan(v) else float(v) for v in row)]
+                for ts, row in zip(df.index, df.to_numpy(), strict=True)
+            ],
+        }
+        self._market_reference_cache = (days, now, result)
+        return result
+
     def __balance_get_est_stake(
         self, coin: str, stake_currency: str, amount: float, balance: Wallet
     ) -> tuple[float, float]:

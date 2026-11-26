@@ -11,7 +11,7 @@ from freqtrade.exceptions import DependencyException
 from freqtrade.exchange import Exchange
 from freqtrade.misc import safe_value_fallback
 from freqtrade.persistence import LocalTrade, Trade, WalletHistory
-from freqtrade.util import dt_floor_day, dt_now
+from freqtrade.util import dt_now
 
 
 logger = logging.getLogger(__name__)
@@ -469,11 +469,11 @@ class Wallets:
                 logger.info(msg)
 
     def record_wallet_state(self) -> None:
-        """Record daily wallet totals to database"""
+        """Record hourly wallet totals to database"""
         if self._is_backtest:
             # only record in live mode.
             return
-        timestamp = dt_floor_day(dt_now())
+        timestamp = dt_now().replace(minute=0, second=0, microsecond=0)
 
         # Record total balances for all currencies
         wallet_records = []
@@ -531,6 +531,10 @@ class Wallets:
             )
             wallet_records.append(wallet_record)
         try:
+            # A measured snapshot replaces a rebuilt one for the same hour.
+            WalletHistory.session.query(WalletHistory).filter(
+                WalletHistory.timestamp == timestamp
+            ).delete()
             WalletHistory.session.bulk_save_objects(wallet_records)
             WalletHistory.session.commit()
         except Exception as e:

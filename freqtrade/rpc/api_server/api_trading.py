@@ -21,6 +21,7 @@ from freqtrade.rpc.api_server.api_schemas import (
     ListCustomData,
     Locks,
     LocksPayload,
+    MarketReferenceResponse,
     MixTag,
     OpenTradeSchema,
     PairCandlesRequest,
@@ -119,6 +120,15 @@ def api_get_wallet_history(rpc: RPC = Depends(get_rpc)):
         "length": len(results),
         "capture_start_ts": capture_date_ts,
     }
+
+
+@router.get("/market_reference", response_model=MarketReferenceResponse, tags=["info"])
+def market_reference(
+    days: int = Query(30, ge=1, le=365, description="Number of days of hourly candles"),
+    rpc: RPC = Depends(get_rpc),
+):
+    """Hourly closes of the market reference basket on the bot's exchange."""
+    return rpc._rpc_market_reference(days)
 
 
 @router.get("/daily", response_model=DailyWeeklyMonthly, tags=["Trading-info"])

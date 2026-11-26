@@ -224,14 +224,16 @@ const offlineSelected = computed(() =>
         <BotsTable :filter="botFilter" />
       </FtPanel>
 
-      <div class="ft-grid-2">
-        <FtPanel title="Balance" flush body-height="300px">
-          <WalletHistoryChart :wallet-data="selectedWalletHistory" :show-title="false" />
-        </FtPanel>
-        <FtPanel title="Profit per day" body-height="300px">
-          <PeriodBreakdown multi-bot-view />
-        </FtPanel>
-      </div>
+      <FtPanel title="Bot comparison" flush body-height="460px">
+        <BotCompareChart
+          :wallet-data="selectedWalletHistory"
+          :trades="botStore.allTradesSelectedBots"
+        />
+      </FtPanel>
+
+      <FtPanel title="Profit per day" body-height="300px">
+        <PeriodBreakdown multi-bot-view />
+      </FtPanel>
 
       <FtPanel title="Open trades" flush>
         <template #actions>

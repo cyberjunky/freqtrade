@@ -1562,6 +1562,44 @@ def test_api_historic_balance(botclient, mocker, ticker, fee, markets, is_short)
     assert "total_quote" in resp1["columns"]
 
 
+def test_api_market_reference(botclient, mocker, markets, time_machine):
+    ftbot, client = botclient
+    time_machine.move_to(datetime(2024, 1, 2, 0, 30, tzinfo=UTC), tick=False)
+    mocker.patch.multiple(EXMS, markets=PropertyMock(return_value=markets))
+
+    def candles(pair_list, **kwargs):
+        dates = pd.date_range("2024-01-01", periods=24, freq="1h", tz="UTC")
+        res = {}
+        for pair, tf, ct in pair_list:
+            df = pd.DataFrame({"date": dates, "close": [100.0 + i for i in range(24)]})
+            if pair.startswith("ETH"):
+                df.loc[0, "close"] = float("nan")
+            res[(pair, tf, ct)] = df
+        return res
+
+    refresh = mocker.patch(f"{EXMS}.refresh_latest_ohlcv", side_effect=candles)
+
+    rc = client_get(client, f"{BASE_URI}/market_reference?days=1")
+    assert_response(rc, 200)
+    resp = rc.json()
+    stake = ftbot.config["stake_currency"]
+    pairs = [p for p in (f"{b}/{stake}" for b in RPC.MARKET_REFERENCE_BASES) if p in markets]
+    assert len(pairs) > 2
+    assert resp["pairs"] == pairs
+    assert resp["timeframe"] == "1h"
+    assert resp["data"][0][0] == 1704067200000
+    assert resp["data"][-1][1:] == [123.0] * len(pairs)
+    assert resp["data"][0][1 + pairs.index(f"ETH/{stake}")] is None
+
+    # Second call within 10 minutes is served from the cache
+    rc = client_get(client, f"{BASE_URI}/market_reference?days=1")
+    assert_response(rc, 200)
+    assert refresh.call_count == 1
+
+    rc = client_get(client, f"{BASE_URI}/market_reference?days=0")
+    assert_response(rc, 422)
+
+
 def test_api_historic_balance_int_bot_managed(botclient, mocker):
     """
     read_sql may return the wallet_history `bot_managed` column as an

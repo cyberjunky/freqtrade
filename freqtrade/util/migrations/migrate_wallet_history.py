@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -15,25 +16,46 @@ from freqtrade.util import dt_now, dt_ts
 logger = logging.getLogger(__name__)
 
 
+# 1: daily rebuild (upstream), 2: hourly rebuild (lite)
+MIGRATION_VERSION = 2
+TIMEFRAME = "1h"
+
+
 def migrate_wallet_history(config: Config, exchange: Exchange, starting_balance: float):
     if config.get("skip_wallet_history_migration") or not exchange.get_option(
         "ohlcv_has_history", True
     ):
         # we can't fill up wallet history without ohlcv history
         return
-    if KeyValueStore.get_int_value("wallet_history_migration"):
+    done = KeyValueStore.get_int_value("wallet_history_migration") or 0
+    if done >= MIGRATION_VERSION:
         logger.debug("Wallet history migration already completed.")
         return
     logger.info("Starting wallet history migration...")
-    _migrate_wallet_history(config, exchange, starting_balance)
+    if done:
+        # Redo the daily rebuild hourly, up to where measured snapshots begin.
+        capture_start = (
+            KeyValueStore.get_datetime_value("wallet_history_migration_date") or dt_now()
+        )
+        WalletHistory.session.query(WalletHistory).filter(
+            WalletHistory.timestamp < capture_start
+        ).delete()
+        WalletHistory.session.commit()
+        _migrate_wallet_history(config, exchange, starting_balance, capture_start)
+    else:
+        _migrate_wallet_history(config, exchange, starting_balance, dt_now())
+        KeyValueStore.store_value("wallet_history_migration_date", dt_now())
     logger.info("Wallet history migration completed.")
-    KeyValueStore.store_value("wallet_history_migration", 1)
-    KeyValueStore.store_value("wallet_history_migration_date", dt_now())
+    KeyValueStore.store_value("wallet_history_migration", MIGRATION_VERSION)
 
 
-def _migrate_wallet_history(config: Config, exchange: Exchange, starting_balance: float):
+def _migrate_wallet_history(
+    config: Config, exchange: Exchange, starting_balance: float, max_date: datetime
+):
     # Prepare balance distribution data with OHLCV rates
-    balance_dist, pairlist_valid = _prepare_balance_distribution(config, exchange, starting_balance)
+    balance_dist, pairlist_valid = _prepare_balance_distribution(
+        config, exchange, starting_balance, max_date
+    )
     if not balance_dist.empty and pairlist_valid:
         _create_wallet_history_entries(
             config, exchange, balance_dist, pairlist_valid, config["stake_currency"]
@@ -41,20 +63,20 @@ def _migrate_wallet_history(config: Config, exchange: Exchange, starting_balance
 
 
 def _prepare_balance_distribution(
-    config: Config, exchange: Exchange, starting_balance: float
+    config: Config, exchange: Exchange, starting_balance: float, max_date: datetime
 ) -> tuple[pd.DataFrame, list[str]]:
     trade_df = trade_list_to_dataframe(Trade.get_trades_proxy(), minified=False)
     if trade_df.empty:
         # no trades, nothing to do
         return pd.DataFrame(), []
     pairlist = list(trade_df["pair"].unique())
-    timeframe = "1d"
+    timeframe = TIMEFRAME
     stake_currency = config["stake_currency"]
     min_date = timeframe_to_prev_date(timeframe, KeyValueStore.get_datetime_value("bot_start_time"))
     balance_dist = balance_distribution_over_time(
         trade_df,
         min_date=min_date,
-        max_date=dt_now(),
+        max_date=max_date,
         start_balance=starting_balance,
         stake_currency=stake_currency,
         timeframe=timeframe,

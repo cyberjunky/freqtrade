@@ -109,12 +109,40 @@ def test_migrate_wallet_history_skips_when_already_migrated(mocker, default_conf
     )
 
     # Set migration as already completed
-    KeyValueStore.store_value("wallet_history_migration", 1)
+    KeyValueStore.store_value("wallet_history_migration", 2)
 
     migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
     # Should not call any migration logic
-    assert KeyValueStore.get_int_value("wallet_history_migration") == 1
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
     assert not migrate_mock.called
+
+
+@pytest.mark.usefixtures("init_persistence")
+def test_migrate_wallet_history_redoes_daily_rebuild(mocker, default_conf_usdt, time_machine):
+    """A daily rebuild (version 1) is replaced by an hourly one up to the capture start."""
+    now = dt_utc(2024, 1, 10, 12, 0, 0)
+    time_machine.move_to(now, tick=False)
+    capture_start = now - timedelta(days=2)
+    KeyValueStore.store_value("wallet_history_migration", 1)
+    KeyValueStore.store_value("wallet_history_migration_date", capture_start)
+    for ts in (capture_start - timedelta(days=1), now):  # one rebuilt, one measured row
+        WalletHistory.session.add(
+            WalletHistory(timestamp=ts, currency="USDT", quote_currency="USDT", balance=1000.0)
+        )
+    WalletHistory.session.commit()
+
+    exchange = MagicMock()
+    exchange.get_option.return_value = True
+    migrate_mock = mocker.patch(
+        "freqtrade.util.migrations.migrate_wallet_history._migrate_wallet_history"
+    )
+    migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
+
+    assert migrate_mock.call_args[0][3] == capture_start
+    remaining = WalletHistory.session.query(WalletHistory).all()
+    assert [r.timestamp.replace(tzinfo=None) for r in remaining] == [now.replace(tzinfo=None)]
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
+    assert KeyValueStore.get_datetime_value("wallet_history_migration_date") == capture_start
 
 
 @pytest.mark.usefixtures("init_persistence")
@@ -129,7 +157,7 @@ def test_migrate_wallet_history_no_trades(default_conf_usdt):
     migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
 
     # Should complete migration (flag set) but no wallet entries
-    assert KeyValueStore.get_int_value("wallet_history_migration") == 1
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
     assert WalletHistory.session.query(WalletHistory).count() == 0
 
 
@@ -157,8 +185,8 @@ def test_migrate_wallet_history_with_trades(default_conf_usdt, fee, time_machine
 
     # Generate mock OHLCV data starting from bot_start
     candle_type = default_conf_usdt.get("candle_type_def", CandleType.SPOT)
-    ohlcv_df = generate_test_data("1d", size=15, start=bot_start.strftime("%Y-%m-%d"))
-    ohlcv_data = {("ETH/USDT", "1d", candle_type): ohlcv_df}
+    ohlcv_df = generate_test_data("1h", size=360, start=bot_start.strftime("%Y-%m-%d"))
+    ohlcv_data = {("ETH/USDT", "1h", candle_type): ohlcv_df}
 
     exchange = MagicMock()
     exchange.get_option.return_value = True
@@ -169,7 +197,7 @@ def test_migrate_wallet_history_with_trades(default_conf_usdt, fee, time_machine
     migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
 
     # Should complete migration
-    assert KeyValueStore.get_int_value("wallet_history_migration") == 1
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
 
     # Should have created wallet history entries
     wallet_entries = WalletHistory.session.query(WalletHistory).all()
@@ -206,12 +234,12 @@ def test_migrate_wallet_history_with_multiple_pairs(default_conf_usdt, fee, time
     # Generate mock OHLCV data for both pairs starting from bot_start
     candle_type = default_conf_usdt.get("candle_type_def", CandleType.SPOT)
     ohlcv_data = {}
-    ohlcv_data[("ETH/USDT", "1d", candle_type)] = generate_test_data(
-        "1d", size=20, start=bot_start.strftime("%Y-%m-%d"), base=1500
+    ohlcv_data[("ETH/USDT", "1h", candle_type)] = generate_test_data(
+        "1h", size=480, start=bot_start.strftime("%Y-%m-%d"), base=1500
     )
 
-    ohlcv_data[("BTC/USDT", "1d", candle_type)] = generate_test_data(
-        "1d", size=20, start=bot_start.strftime("%Y-%m-%d"), base=30000
+    ohlcv_data[("BTC/USDT", "1h", candle_type)] = generate_test_data(
+        "1h", size=480, start=bot_start.strftime("%Y-%m-%d"), base=30000
     )
 
     exchange = MagicMock()
@@ -223,7 +251,7 @@ def test_migrate_wallet_history_with_multiple_pairs(default_conf_usdt, fee, time
     migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
 
     # Should complete migration
-    assert KeyValueStore.get_int_value("wallet_history_migration") == 1
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
 
     # Should have wallet history entries
     wallet_entries = WalletHistory.session.query(WalletHistory).all()
@@ -240,8 +268,8 @@ def test_migrate_wallet_history_with_multiple_pairs(default_conf_usdt, fee, time
 
     eth_entries = [e for e in wallet_entries if e.currency == "ETH"]
     btc_entries = [e for e in wallet_entries if e.currency == "BTC"]
-    assert len(eth_entries) == 4
-    assert len(btc_entries) == 2
+    assert len(eth_entries) == 4 * 24
+    assert len(btc_entries) == 2 * 24
     assert all(entry.rate and entry.rate > 1400 and entry.rate < 1600 for entry in eth_entries)
     assert all(entry.rate and entry.rate > 29000 and entry.rate < 31000 for entry in btc_entries)
     assert all(entry.balance == 10 for entry in btc_entries)
@@ -302,8 +330,8 @@ def test_migrate_wallet_history_stores_migration_date(
 
     candle_type = default_conf_usdt.get("candle_type_def", CandleType.SPOT)
     ohlcv_data = {
-        ("ETH/USDT", "1d", candle_type): generate_test_data(
-            "1d", size=15, start=bot_start.strftime("%Y-%m-%d")
+        ("ETH/USDT", "1h", candle_type): generate_test_data(
+            "1h", size=360, start=bot_start.strftime("%Y-%m-%d")
         )
     }
 
@@ -334,7 +362,7 @@ def test_internal_migrate_wallet_history_empty_trades(default_conf_usdt, time_ma
     exchange.refresh_latest_ohlcv.return_value = {}
 
     # Call internal function directly with no trades
-    _migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
+    _migrate_wallet_history(default_conf_usdt, exchange, 1000.0, dt_now())
 
     # refresh_latest_ohlcv should not be called when there are no trades
     exchange.refresh_latest_ohlcv.assert_not_called()
@@ -362,8 +390,8 @@ def test_migrate_wallet_history_with_patched_exchange(mocker, default_conf_usdt,
 
     # Generate mock OHLCV data starting from bot_start
     candle_type = default_conf_usdt.get("candle_type_def", CandleType.SPOT)
-    ohlcv_df = generate_test_data("1d", size=15, start=bot_start.strftime("%Y-%m-%d"))
-    ohlcv_data = {("ETH/USDT", "1d", candle_type): ohlcv_df}
+    ohlcv_df = generate_test_data("1h", size=360, start=bot_start.strftime("%Y-%m-%d"))
+    ohlcv_data = {("ETH/USDT", "1h", candle_type): ohlcv_df}
 
     # Mock exchange methods
     mocker.patch.multiple(
@@ -377,7 +405,7 @@ def test_migrate_wallet_history_with_patched_exchange(mocker, default_conf_usdt,
     migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
 
     # Should complete migration
-    assert KeyValueStore.get_int_value("wallet_history_migration") == 1
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
 
 
 @pytest.mark.usefixtures("init_persistence")
@@ -404,8 +432,8 @@ def test_migrate_wallet_history_db_error_handling(
 
     candle_type = default_conf_usdt.get("candle_type_def", CandleType.SPOT)
     ohlcv_data = {
-        ("ETH/USDT", "1d", candle_type): generate_test_data(
-            "1d", size=15, start=bot_start.strftime("%Y-%m-%d")
+        ("ETH/USDT", "1h", candle_type): generate_test_data(
+            "1h", size=360, start=bot_start.strftime("%Y-%m-%d")
         )
     }
 
@@ -423,7 +451,7 @@ def test_migrate_wallet_history_db_error_handling(
     migrate_wallet_history(default_conf_usdt, exchange, 1000.0)
 
     # Migration flag should still be set even after error in _migrate
-    assert KeyValueStore.get_int_value("wallet_history_migration") == 1
+    assert KeyValueStore.get_int_value("wallet_history_migration") == 2
 
 
 @pytest.mark.usefixtures("init_persistence")
@@ -456,12 +484,12 @@ def test__prepare_balance_distribution(default_conf_usdt, fee, time_machine, mar
     # Generate mock OHLCV data for both pairs starting from bot_start
     candle_type = default_conf_usdt.get("candle_type_def", CandleType.SPOT)
     ohlcv_data = {}
-    ohlcv_data[("ETH/USDT", "1d", candle_type)] = generate_test_data(
-        "1d", size=20, start=bot_start.strftime("%Y-%m-%d"), base=1500
+    ohlcv_data[("ETH/USDT", "1h", candle_type)] = generate_test_data(
+        "1h", size=480, start=bot_start.strftime("%Y-%m-%d"), base=1500
     )
 
-    ohlcv_data[("BTC/USDT", "1d", candle_type)] = generate_test_data(
-        "1d", size=20, start=bot_start.strftime("%Y-%m-%d"), base=30000
+    ohlcv_data[("BTC/USDT", "1h", candle_type)] = generate_test_data(
+        "1h", size=480, start=bot_start.strftime("%Y-%m-%d"), base=30000
     )
 
     exchange = MagicMock()
@@ -470,14 +498,14 @@ def test__prepare_balance_distribution(default_conf_usdt, fee, time_machine, mar
     exchange.refresh_latest_ohlcv.return_value = ohlcv_data
 
     balance_dist, pairlist_valid = _prepare_balance_distribution(
-        default_conf_usdt, exchange, 1000.0
+        default_conf_usdt, exchange, 1000.0, dt_now()
     )
     assert not balance_dist.empty
     assert len(pairlist_valid) == 2
     assert "ETH/USDT" in pairlist_valid
     assert "BTC/USDT" in pairlist_valid
 
-    assert len(balance_dist) == 16  # 16 days from bot_start to now
+    assert len(balance_dist) == 15 * 24 + 1  # hourly from bot_start to now
     assert balance_dist["USDT"].iloc[0] == 1000.0
     assert pd.isna(balance_dist["USDT"]).sum() == 0
 

@@ -276,3 +276,46 @@ has FreqAI).
 
 **Not verified:** the UI against a real running bot. All checks and screenshots used the mocked API
 of the end-to-end tests.
+
+---
+
+## 7. Bot comparison ✅
+
+Compare bots on one timeline, against the market, on the Overview page.
+
+**Backend:**
+
+- **Hourly wallet history.** `record_wallet_state` runs every hour at :07 instead of daily at 00:07,
+  and stores one snapshot per hour (a second one in the same hour replaces it).
+- **Hourly rebuild.** The wallet-history migration rebuilds the period before snapshots existed from
+  the trades plus **1h** candles (upstream: 1d). A database that already has upstream's daily rebuild
+  (`wallet_history_migration` = 1) gets it redone hourly once, up to the date snapshots began;
+  measured rows are kept. The flag is now 2.
+- **`GET /api/v1/market_reference?days=N`** (1–365, default 30): hourly closes of a fixed basket,
+  BTC ETH SOL XRP ADA DOGE LINK LTC against the stake currency, from the bot's own exchange. Pairs
+  the exchange doesn't list are left out. Cached for 10 minutes.
+- API version 2.52.
+
+**FreqUI:** the daily "Balance" chart on the Overview page is replaced by a **Bot comparison** panel:
+
+- Every selected bot on one time axis, each starting at 0 at the first moment all of them have data
+  in the visible window (7d / 30d / 90d / all, or zoomed).
+- % of the bot's starting capital, or stake currency when all bots use the same one.
+- Curve including open positions (wallet history), or closed trades only.
+- Market reference on the right axis: the basket (equal start weights, weights drift, no costs) or
+  BTC, rebased at the same moment.
+- Info line: 24h change of the reference with direction (up from +1%, down from −1%, sideways in
+  between), BTC 24h, how many basket coins rose over 24h, and realised volatility (spread of the last
+  24 hourly basket returns, scaled to a day).
+- The calculations are in `frequi/src/utils/charts/botCompare.ts`.
+
+**Checks:**
+
+- Backend: the wallet, migration, API server and bot tests pass (697), including new tests for
+  hourly snapshots, redoing a daily rebuild and the endpoint.
+- FreqUI: type-check, lint, unit tests (58, 6 new) and build pass. End-to-end (Edge): 17 of 19 pass;
+  the two chart-page tests time out with and without this change.
+- Against a real dry-run bot (Binance futures): `/market_reference` returned all 8 pairs, and the
+  panel rendered with 10 days of history written into the test database.
+
+**Not verified:** several real bots side by side, and wallet history recorded by a bot over hours.

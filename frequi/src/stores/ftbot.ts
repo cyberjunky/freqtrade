@@ -56,6 +56,7 @@ import type {
   WalletHistory,
   WalletHistoryPerBot,
   WhitelistResponse,
+  MarketReference,
 } from '@/types';
 import { BacktestSteps, LoadingStatus, RunModes, TimeSummaryOptions } from '@/types';
 import type { FTWsMessage } from '@/types/wsMessageTypes';
@@ -709,6 +710,15 @@ export function createBotSubStore(botId: string, botName: string) {
         } catch (err) {
           console.error(err);
         }
+      },
+      async getMarketReference(days: number): Promise<MarketReference | undefined> {
+        if (!this.botFeatures.marketReference) {
+          return undefined;
+        }
+        const { data } = await api.get<MarketReference>('/market_reference', {
+          params: { days },
+        });
+        return data;
       },
       async getState() {
         try {
